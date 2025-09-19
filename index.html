@@ -814,6 +814,19 @@ button:hover {
         <label style="font-size: 12px; color: #666;">Weekly Hours</label>
         <input type="number" id="resourceHours" style="padding: 8px; border: 1px solid #ddd; border-radius: 4px;" value="40" min="1" max="80">
       </div>
+      
+      <div style="display: grid; gap: 4px;">
+        <label style="font-size: 12px; color: #666;">Absences / Vacations</label>
+        <div id="absencesList" style="display: grid; gap: 4px; max-height: 120px; overflow-y: auto;">
+          <!-- Absences will be rendered here -->
+        </div>
+        <div style="display: flex; gap: 8px;">
+          <input type="date" id="absenceStart" style="flex: 1; padding: 6px; border: 1px solid #ddd; border-radius: 4px; font-size: 11px;">
+          <span style="align-self: center;">to</span>
+          <input type="date" id="absenceEnd" style="flex: 1; padding: 6px; border: 1px solid #ddd; border-radius: 4px; font-size: 11px;">
+          <button onclick="addAbsence()" style="padding: 6px 12px; font-size: 11px; min-width: auto;">+ Add</button>
+        </div>
+      </div>
     </div>
     
     <div class="modal-footer">
@@ -891,15 +904,44 @@ function calculateSchedule() {
     }
   });
   
-  // Helper function to add working days
-  function addWorkingDays(startDate, days) {
+  // Helper function to check if a date is during an absence
+  function isAbsent(resourceCode, date) {
+    const resource = project.resources[resourceCode];
+    if (!resource || !resource.absences) return false;
+    
+    return resource.absences.some(absence => {
+      const absStart = new Date(absence.start);
+      const absEnd = new Date(absence.end);
+      absStart.setHours(0, 0, 0, 0);
+      absEnd.setHours(23, 59, 59, 999);
+      return date >= absStart && date <= absEnd;
+    });
+  }
+  
+  // Helper function to find next available date after absences
+  function getNextAvailableDate(resourceCode, proposedDate) {
+    let date = new Date(proposedDate);
+    
+    while (isAbsent(resourceCode, date)) {
+      date.setDate(date.getDate() + 1);
+      // Also skip weekends
+      while (date.getDay() === 0 || date.getDay() === 6) {
+        date.setDate(date.getDate() + 1);
+      }
+    }
+    
+    return date;
+  }
+  
+  // Helper function to add working days (considering absences)
+  function addWorkingDays(resourceCode, startDate, days) {
     const date = new Date(startDate);
     let remainingDays = days;
     
     while (remainingDays > 0) {
       date.setDate(date.getDate() + 1);
-      // Skip weekends
-      if (date.getDay() !== 0 && date.getDay() !== 6) {
+      // Skip weekends and absences
+      if (date.getDay() !== 0 && date.getDay() !== 6 && !isAbsent(resourceCode, date)) {
         remainingDays--;
       }
     }
@@ -975,11 +1017,17 @@ function calculateSchedule() {
     taskStart = new Date(Math.max(dependencyEnd, resourceFree));
     taskStart = skipToWorkingDay(taskStart);
     
-    // STEP 4: Calculate end and update resource availability
-    const taskEnd = addWorkingDays(taskStart, task.duration - 1);
+    // STEP 4: Check for absences and adjust start date
+    taskStart = getNextAvailableDate(task.owner, taskStart);
+    
+    // STEP 5: Calculate end considering absences
+    const taskEnd = addWorkingDays(task.owner, taskStart, task.duration - 1);
     
     // CRITICAL: Update when resource will be free again
-    resourceAvailability[task.owner] = skipToWorkingDay(new Date(taskEnd.getTime() + 24*60*60*1000));
+    let nextFree = new Date(taskEnd.getTime() + 24*60*60*1000);
+    nextFree = skipToWorkingDay(nextFree);
+    nextFree = getNextAvailableDate(task.owner, nextFree);
+    resourceAvailability[task.owner] = nextFree;
     
     // Store schedule
     schedule[task.id] = {
@@ -1176,12 +1224,18 @@ let editingResourceCode = null;
 
 function openResourceModal(code = null) {
   const modal = document.getElementById('resourceModal');
-  const colors = ['#2196F3', '#FF9800', '#4CAF50', '#9C27B0', '#F44336', '#00BCD4', '#FFC107', '#795548'];
+  // Extended color palette - MAGNIFICO ALIGNMENT!
+  const colors = [
+    '#2196F3', '#03A9F4', '#00BCD4', // Blues
+    '#4CAF50', '#8BC34A', '#CDDC39', // Greens  
+    '#FF9800', '#FF5722', '#F44336', // Oranges/Reds
+    '#9C27B0', '#673AB7', '#3F51B5'  // Purples/Indigos
+  ];
   
   // Setup color presets
   const colorPresets = document.getElementById('colorPresets');
   colorPresets.innerHTML = colors.map(c => 
-    `<div style="width: 24px; height: 24px; background: ${c}; border-radius: 4px; cursor: pointer; border: 2px solid transparent;" onclick="document.getElementById('resourceColor').value = '${c}'"></div>`
+    `<div style="width: 24px; height: 24px; background: ${c}; border-radius: 4px; cursor: pointer; border: 1px solid #ddd;" onclick="document.getElementById('resourceColor').value = '${c}'; this.style.border='2px solid #000'; Array.from(this.parentElement.children).forEach(el => { if(el !== this) el.style.border='1px solid #ddd'; });"></div>`
   ).join('');
   
   if (code) {
@@ -1194,6 +1248,9 @@ function openResourceModal(code = null) {
     document.getElementById('resourceCode').disabled = true; // Can't change code in edit mode
     document.getElementById('resourceColor').value = resource.color;
     document.getElementById('resourceHours').value = resource.weeklyHours;
+    
+    // Load absences
+    renderAbsences(resource.absences || []);
   } else {
     // Add mode
     editingResourceCode = null;
@@ -1203,6 +1260,9 @@ function openResourceModal(code = null) {
     document.getElementById('resourceCode').disabled = false;
     document.getElementById('resourceColor').value = colors[Math.floor(Math.random() * colors.length)];
     document.getElementById('resourceHours').value = '40';
+    
+    // Clear absences
+    renderAbsences([]);
     
     // Auto-generate code from name
     document.getElementById('resourceName').oninput = (e) => {
@@ -1220,6 +1280,75 @@ function openResourceModal(code = null) {
 function closeResourceModal() {
   document.getElementById('resourceModal').classList.remove('active');
   editingResourceCode = null;
+}
+
+// Absence management
+let tempAbsences = [];
+
+function renderAbsences(absences = []) {
+  tempAbsences = [...absences]; // Work with temp copy
+  const list = document.getElementById('absencesList');
+  
+  if (tempAbsences.length === 0) {
+    list.innerHTML = '<div style="padding: 8px; text-align: center; color: #999; font-size: 11px; background: #f8f8f8; border-radius: 4px;">No absences scheduled</div>';
+    return;
+  }
+  
+  list.innerHTML = tempAbsences.map((absence, index) => {
+    const start = new Date(absence.start).toLocaleDateString('en-GB');
+    const end = new Date(absence.end).toLocaleDateString('en-GB');
+    const days = Math.ceil((new Date(absence.end) - new Date(absence.start)) / (1000 * 60 * 60 * 24)) + 1;
+    
+    return `
+      <div style="display: flex; align-items: center; gap: 8px; padding: 6px 8px; background: #f8f8f8; border-radius: 4px; font-size: 11px;">
+        <span style="flex: 1;">${start} - ${end} (${days} days)</span>
+        <span onclick="deleteAbsence(${index})" style="cursor: pointer; color: #ff4444; font-weight: bold;">×</span>
+      </div>
+    `;
+  }).join('');
+}
+
+function addAbsence() {
+  const start = document.getElementById('absenceStart').value;
+  const end = document.getElementById('absenceEnd').value;
+  
+  if (!start || !end) {
+    alert('Please select both start and end dates');
+    return;
+  }
+  
+  if (new Date(start) > new Date(end)) {
+    alert('End date must be after start date');
+    return;
+  }
+  
+  // Check for overlaps
+  const overlap = tempAbsences.some(absence => {
+    const aStart = new Date(absence.start);
+    const aEnd = new Date(absence.end);
+    const nStart = new Date(start);
+    const nEnd = new Date(end);
+    return (nStart <= aEnd) && (nEnd >= aStart);
+  });
+  
+  if (overlap) {
+    alert('This absence overlaps with an existing one');
+    return;
+  }
+  
+  tempAbsences.push({ start, end });
+  tempAbsences.sort((a, b) => new Date(a.start) - new Date(b.start));
+  
+  renderAbsences(tempAbsences);
+  
+  // Clear inputs
+  document.getElementById('absenceStart').value = '';
+  document.getElementById('absenceEnd').value = '';
+}
+
+function deleteAbsence(index) {
+  tempAbsences.splice(index, 1);
+  renderAbsences(tempAbsences);
 }
 
 function saveResource() {
@@ -1243,17 +1372,20 @@ function saveResource() {
     project.resources[editingResourceCode].name = name;
     project.resources[editingResourceCode].color = color;
     project.resources[editingResourceCode].weeklyHours = hours;
+    project.resources[editingResourceCode].absences = tempAbsences; // Save absences!
   } else {
     // Add new
     project.resources[code] = {
       name: name,
       color: color,
-      weeklyHours: hours
+      weeklyHours: hours,
+      absences: tempAbsences // Save absences!
     };
   }
   
   renderResources();
-  render(); // Update chart colors
+  renderTimeline(); // Re-render timeline to show absence markers
+  render(); // Update chart
   autoSave();
   closeResourceModal();
 }
