@@ -24,16 +24,16 @@ body { font: 13px system-ui; background: #fff; }
 .task {
   display: flex;
   align-items: center;
-  padding: 8px 8px 8px 0;
+  padding: 8px 8px 8px 4px;
   background: #fff;
   border-bottom: 1px solid #e0e0e0;
   height: 48px;
-  gap: 8px;
+  gap: 4px;
   position: relative;
 }
 
 .task.indent-1 {
-  padding-left: 32px;
+  padding-left: 28px;
   background: #fafafa;
 }
 
@@ -45,11 +45,17 @@ body { font: 13px system-ui; background: #fff; }
 .task.indent-1::before {
   content: "";
   position: absolute;
-  left: 16px;
+  left: 12px;
   top: 50%;
   width: 16px;
   height: 1px;
   background: #ddd;
+}
+
+/* Hide subtasks when parent is collapsed */
+.task.collapsed + .task.indent-1,
+.task.collapsed ~ .task.indent-1 {
+  display: none;
 }
 
 .task:hover {
@@ -189,9 +195,40 @@ body { font: 13px system-ui; background: #fff; }
   overflow-x: hidden;
 }
 
+/* Collapse/Expand toggle - SEPARATE from drag handle! */
+.collapse-toggle {
+  width: 20px;
+  height: 20px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  color: #666;
+  flex-shrink: 0;
+  border-radius: 3px;
+  transition: all 0.2s;
+  user-select: none;
+}
+
+.collapse-toggle:hover {
+  background: #f0f0f0;
+  color: #000;
+}
+
+.collapse-toggle.collapsed {
+  transform: rotate(-90deg);
+}
+
+/* Empty space for tasks without children */
+.collapse-toggle.empty {
+  cursor: default;
+  opacity: 0;
+  pointer-events: none;
+}
+
 /* Drag handle - ONLY this is draggable! */
 .drag-handle {
-  width: 24px;
+  width: 20px;
   height: 32px;
   cursor: move;
   display: flex;
@@ -461,7 +498,7 @@ button:hover {
 <script>
 // Minimal data structure following Fluenta Tempus philosophy
 let project = {
-  version: "1.1.0", // Magnifico Subtasks!
+  version: "1.2.0", // Collapsible tasks!
   name: "Website Relaunch",
   startDate: "2025-01-20",
   resources: {
@@ -469,17 +506,17 @@ let project = {
     "Team": { name: "Team", color: "#FF9800", weeklyHours: 80 }
   },
   tasks: [
-    { id: 1, name: "Requirements", owner: "NJ", duration: 5, progress: 100, deps: [], indent: 0 },
+    { id: 1, name: "Requirements", owner: "NJ", duration: 5, progress: 100, deps: [], indent: 0, collapsed: false },
     { id: 2, name: "User Stories", owner: "NJ", duration: 2, progress: 100, deps: [1], indent: 1 },
     { id: 3, name: "Technical Spec", owner: "NJ", duration: 3, progress: 100, deps: [1], indent: 1 },
-    { id: 4, name: "Design", owner: "NJ", duration: 8, progress: 75, deps: [3], indent: 0 },
+    { id: 4, name: "Design", owner: "NJ", duration: 8, progress: 75, deps: [3], indent: 0, collapsed: false },
     { id: 5, name: "Wireframes", owner: "NJ", duration: 3, progress: 100, deps: [4], indent: 1 },
     { id: 6, name: "Mockups", owner: "NJ", duration: 5, progress: 60, deps: [5], indent: 1 },
-    { id: 7, name: "Development", owner: "Team", duration: 15, progress: 30, deps: [6], indent: 0 },
+    { id: 7, name: "Development", owner: "Team", duration: 15, progress: 30, deps: [6], indent: 0, collapsed: false },
     { id: 8, name: "Frontend", owner: "Team", duration: 8, progress: 40, deps: [7], indent: 1 },
     { id: 9, name: "Backend", owner: "Team", duration: 7, progress: 20, deps: [7], indent: 1 },
-    { id: 10, name: "Testing", owner: "NJ", duration: 5, progress: 0, deps: [9], indent: 0 },
-    { id: 11, name: "Deployment", owner: "Team", duration: 3, progress: 0, deps: [10], indent: 0 }
+    { id: 10, name: "Testing", owner: "NJ", duration: 5, progress: 0, deps: [9], indent: 0, collapsed: false },
+    { id: 11, name: "Deployment", owner: "Team", duration: 3, progress: 0, deps: [10], indent: 0, collapsed: false }
   ]
 };
 
@@ -657,9 +694,23 @@ function render() {
   
   // Create matching rows for each task
   project.tasks.forEach((task, index) => {
-    // Task row with drag handle
+    // Skip subtasks if parent is collapsed
+    if (task.indent > 0) {
+      // Find parent task
+      for (let i = index - 1; i >= 0; i--) {
+        if (project.tasks[i].indent === 0) {
+          if (project.tasks[i].collapsed) {
+            return; // Skip this subtask
+          }
+          break;
+        }
+      }
+    }
+    
+    // Task row with separate collapse and drag controls
     const taskEl = document.createElement('div');
     taskEl.className = `task indent-${task.indent || 0}`;
+    if (task.collapsed) taskEl.classList.add('collapsed');
     taskEl.dataset.id = task.id;
     
     // Determine if this is a parent task (has children)
@@ -672,8 +723,11 @@ function render() {
     const buttonTitle = isSubtask ? 'Make main task' : 'Make subtask';
     
     taskEl.innerHTML = `
+      <div class="collapse-toggle ${isParent ? '' : 'empty'} ${task.collapsed ? 'collapsed' : ''}">
+        ${isParent ? '▼' : ''}
+      </div>
       <div class="drag-handle" draggable="true">
-        <span>${isParent ? '▼' : '≡'}</span>
+        <span>≡</span>
       </div>
       <div class="task-content">
         <div class="task-name" contenteditable="true" data-field="name">${task.id}. ${task.name}</div>
@@ -687,6 +741,16 @@ function render() {
         </div>
       </div>
     `;
+    
+    // Collapse/Expand functionality
+    const collapseToggle = taskEl.querySelector('.collapse-toggle');
+    if (isParent) {
+      collapseToggle.onclick = (e) => {
+        e.stopPropagation();
+        task.collapsed = !task.collapsed;
+        render();
+      };
+    }
     
     // ONE button with ONE function!
     const indentBtn = taskEl.querySelector('.indent-btn');
@@ -993,7 +1057,8 @@ function addTask() {
       duration: 5,
       progress: 0,
       deps: lastTask ? [lastTask.id] : [],
-      indent: 0 // New tasks are main tasks
+      indent: 0, // New tasks are main tasks
+      collapsed: false
     });
     renderTimeline();
     render();
