@@ -18,6 +18,7 @@
 
 # Erlaube das .claude Verzeichnis und seinen Inhalt
 !.claude/
+!.claude/settings.local.json
 !.claude/agents/
 !.claude/agents/*.md
 !.claude/commands/
