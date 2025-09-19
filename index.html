@@ -188,12 +188,11 @@ body { font: 13px system-ui; background: #fff; }
   height: calc(100vh - 120px);
 }
 
-/* Task list grid uses same row height as chart bars */
+/* Task list - no own scrollbar but scrollable via JS */
 .task-list {
   display: grid;
   grid-auto-rows: 48px;
-  overflow-y: auto;
-  overflow-x: hidden; /* NO horizontal scroll - stays fixed! */
+  overflow: hidden; /* NO visible scrollbars! */
 }
 
 /* Collapse/Expand toggle - SEPARATE from drag handle! */
@@ -1265,29 +1264,16 @@ function render() {
   chart.appendChild(chartScroll);
   
   // SINGLE SOURCE OF TRUTH: Chart controls all scrolling!
-  let isScrolling = false;
-  
-  // Vertical sync: Task list <-> Chart
-  taskList.onscroll = () => {
-    if (!isScrolling) {
-      isScrolling = true;
-      chart.scrollTop = taskList.scrollTop;
-      isScrolling = false;
-    }
-  };
   
   // Chart is the MASTER - it controls both timeline and task list!
   chart.onscroll = () => {
-    if (!isScrolling) {
-      isScrolling = true;
-      // Vertical to task list
-      taskList.scrollTop = chart.scrollTop;
-      // Horizontal to timeline (move the inner scroll container)
-      const timelineScroll = document.getElementById('timeline').querySelector('.timeline-scroll');
-      if (timelineScroll) {
-        timelineScroll.style.transform = `translateX(-${chart.scrollLeft}px)`;
-      }
-      isScrolling = false;
+    // Vertical to task list (direct positioning)
+    taskList.scrollTop = chart.scrollTop;
+    
+    // Horizontal to timeline (transform the inner container)
+    const timelineScroll = document.getElementById('timeline').querySelector('.timeline-scroll');
+    if (timelineScroll) {
+      timelineScroll.style.transform = `translateX(-${chart.scrollLeft}px)`;
     }
   };
 }
