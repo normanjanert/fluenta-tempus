@@ -717,13 +717,9 @@ button:hover {
   margin: 0;
 }
 
-.dep-option .task-id {
-  font-weight: 600;
-  min-width: 30px;
-}
-
 .dep-option .task-name {
   flex: 1;
+  font-weight: 500;
 }
 
 .modal-footer {
@@ -1558,7 +1554,7 @@ function render() {
         <span>≡</span>
       </div>
       <div class="task-content">
-        <div class="task-name" contenteditable="true" data-field="name">${task.id}. ${task.name}</div>
+        <div class="task-name" contenteditable="true" data-field="name" data-task-id="${task.id}">${task.name}</div>
         <div class="task-meta">
           <span class="owner" data-field="owner">${task.owner}</span>
           <span class="duration" data-field="duration">${task.duration}d</span>
@@ -1595,25 +1591,17 @@ function render() {
     const nameEl = taskEl.querySelector('.task-name');
     nameEl.addEventListener('focus', () => {
       nameEl.classList.add('editing');
-      // Select text content without the number prefix
+      // Select all text content
       const range = document.createRange();
-      const textNode = nameEl.firstChild;
-      if (textNode) {
-        const text = textNode.textContent;
-        const dotIndex = text.indexOf('. ');
-        if (dotIndex !== -1) {
-          range.setStart(textNode, dotIndex + 2);
-          range.setEnd(textNode, text.length);
-          const sel = window.getSelection();
-          sel.removeAllRanges();
-          sel.addRange(range);
-        }
-      }
+      range.selectNodeContents(nameEl);
+      const sel = window.getSelection();
+      sel.removeAllRanges();
+      sel.addRange(range);
     });
     
     nameEl.addEventListener('blur', (e) => {
       nameEl.classList.remove('editing');
-      const newName = e.target.textContent.replace(/^\d+\.\s*/, '');
+      const newName = e.target.textContent.trim();
       if (newName !== task.name) {
         task.name = newName;
         render();
@@ -1946,17 +1934,17 @@ document.addEventListener('dragover', e => {
 });
 
 
-// Format dependencies for display - WITH NAMES!
+// Format dependencies for display - WITH NAMES ONLY!
 function formatDeps(deps) {
   if (!deps || deps.length === 0) return '⚡';
   
-  // Get task names for the dependencies
+  // Get task names for the dependencies - NO NUMBERS!
   const depNames = deps.map(depId => {
     const depTask = project.tasks.find(t => t.id === depId);
-    return depTask ? `${depTask.id}.${depTask.name.substring(0, 8)}` : depId;
-  });
+    return depTask ? depTask.name.substring(0, 15) : '';
+  }).filter(n => n); // Remove empty
   
-  return `→ ${depNames.join(', ')}`;
+  return depNames.length > 0 ? `→ ${depNames.join(', ')}` : '⚡';
 }
 
 // Check if a task is blocked by incomplete dependencies
@@ -2145,7 +2133,7 @@ function editDependencies(id) {
     editingTaskId = id;
     
     // Setup modal header
-    document.getElementById('modalTaskName').textContent = `Task ${task.id}: ${task.name}`;
+    document.getElementById('modalTaskName').textContent = task.name;
     
     // Find available sibling tasks
     const taskIndex = project.tasks.indexOf(task);
@@ -2196,8 +2184,7 @@ function editDependencies(id) {
                    id="dep_${sibling.id}" 
                    value="${sibling.id}"
                    ${task.deps && task.deps.includes(sibling.id) ? 'checked' : ''}>
-            <label for="dep_${sibling.id}" style="flex: 1; display: flex; align-items: center; gap: 8px; cursor: pointer;">
-              <span class="task-id">${sibling.id}.</span>
+            <label for="dep_${sibling.id}" style="flex: 1; display: flex; align-items: center; cursor: pointer;">
               <span class="task-name">${sibling.name}</span>
             </label>
           `;
@@ -2233,7 +2220,7 @@ function updateCurrentDeps() {
   document.querySelectorAll('.dep-option input:checked').forEach(checkbox => {
     const task = project.tasks.find(t => t.id === parseInt(checkbox.value));
     if (task) {
-      selected.push(`${task.id}.${task.name}`);
+      selected.push(task.name); // NUR DER NAME!
     }
   });
   
