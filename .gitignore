@@ -1,0 +1,31 @@
+# Fluenta Tempus - Inverse .gitignore
+# "Alles ist verboten, außer dem Wesentlichen"
+
+# ERST: Ignoriere ALLES
+*
+**/*
+
+# DANN: Erlaube NUR das Nötige
+!.gitignore
+!index.html
+!CLAUDE.md
+!AGENTS.md
+!manifest.md
+!README.md
+!LICENSE
+!GENESIS.md
+!example.json
+
+# Erlaube das .claude Verzeichnis und seinen Inhalt
+!.claude/
+!.claude/agents/
+!.claude/agents/*.md
+!.claude/commands/
+!.claude/commands/*.md
+
+# Erlaube VS Code Settings (nur für Markdown-Lint-Regeln!)
+!.vscode/
+!.vscode/settings.json
+
+# Das war's. Mehr gibt es nicht.
+# Wenn eine Datei nicht oben steht, gehört sie nicht ins Projekt.

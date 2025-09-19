@@ -1,0 +1,1042 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Fluenta Tempus - Magnifico Timeline</title>
+<style>
+* { margin: 0; padding: 0; box-sizing: border-box; }
+body { font: 13px system-ui; background: #fff; }
+
+.chart {
+  background: #fff;
+  overflow-x: auto;
+  overflow-y: auto;
+  position: relative;
+}
+
+.chart-scroll {
+  position: relative;
+  display: inline-block;
+  min-width: 100%;
+}
+
+.task {
+  display: flex;
+  align-items: center;
+  padding: 8px 8px 8px 0;
+  background: #fff;
+  border-bottom: 1px solid #e0e0e0;
+  height: 48px;
+  gap: 8px;
+  position: relative;
+}
+
+.task.indent-1 {
+  padding-left: 32px;
+  background: #fafafa;
+}
+
+.task.indent-1 .task-name {
+  font-size: 12px;
+  font-weight: 500;
+}
+
+.task.indent-1::before {
+  content: "";
+  position: absolute;
+  left: 16px;
+  top: 50%;
+  width: 16px;
+  height: 1px;
+  background: #ddd;
+}
+
+.task:hover {
+  background: #f8f9fa;
+}
+
+.task.dragging {
+  opacity: 0.5;
+  background: #e3f2fd;
+}
+
+/* Main Grid Layout */
+.app {
+  display: grid;
+  grid-template-columns: 320px 1fr;
+  grid-template-rows: auto auto 1fr;
+  height: 100vh;
+  overflow: hidden;
+}
+
+/* Header spans both columns */
+.header {
+  grid-column: 1 / -1;
+  padding: 16px;
+  background: #000;
+  color: #fff;
+  border-bottom: 1px solid #ddd;
+}
+
+.header h1 { font-size: 18px; }
+.header .subtitle { opacity: 0.7; font-size: 11px; margin-top: 4px; }
+
+/* Controls in left column */
+.controls {
+  padding: 12px;
+  background: #f8f8f8;
+  border-bottom: 1px solid #ddd;
+  display: flex;
+  gap: 8px;
+}
+
+/* Timeline header - MAGNIFICO VERSION! */
+.timeline-header {
+  background: #f8f8f8;
+  border-bottom: 1px solid #ddd;
+  border-left: 1px solid #ddd;
+  overflow-x: auto;
+  display: flex;
+  height: 48px;
+  position: relative;
+}
+
+.timeline-scroll {
+  display: flex;
+  position: relative;
+  padding-top: 12px; /* Space for month labels */
+}
+
+/* Each day gets its own column - GENIAL! */
+.day {
+  width: 20px; /* 20px per day - PERFEKT! */
+  height: 36px; /* Slightly shorter to make room for month */
+  border-right: 1px solid #f0f0f0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  font-size: 10px;
+  position: relative;
+  flex-shrink: 0;
+}
+
+.day.weekend {
+  background: #f5f5f5;
+  color: #999;
+}
+
+.day.week-start {
+  border-left: 2px solid #ddd;
+}
+
+.day.month-start {
+  border-left: 2px solid #333;
+}
+
+.day-number {
+  font-weight: 600;
+  line-height: 1;
+}
+
+.day-name {
+  font-size: 8px;
+  opacity: 0.5;
+  margin-top: 2px;
+}
+
+/* Month labels - subtle and elegant! */
+.month-label {
+  position: absolute;
+  top: 0;
+  height: 12px;
+  display: flex;
+  align-items: center;
+  font-size: 10px;
+  font-weight: 600;
+  color: #666;
+  padding: 0 4px;
+  pointer-events: none;
+  z-index: 5;
+}
+
+/* Month separator lines - subtle! */
+.month-line {
+  position: absolute;
+  top: 10px;
+  bottom: 0;
+  width: 1px;
+  background: #333;
+  pointer-events: none;
+  z-index: 4;
+}
+
+/* Main content area with synchronized grids */
+.content {
+  grid-column: 1 / -1;
+  display: grid;
+  grid-template-columns: 320px 1fr;
+  overflow: hidden;
+  height: calc(100vh - 120px);
+}
+
+/* Task list grid uses same row height as chart bars */
+.task-list {
+  display: grid;
+  grid-auto-rows: 48px;
+  overflow-y: auto;
+  overflow-x: hidden;
+}
+
+/* Drag handle - ONLY this is draggable! */
+.drag-handle {
+  width: 24px;
+  height: 32px;
+  cursor: move;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #999;
+  flex-shrink: 0;
+}
+
+.drag-handle:hover {
+  color: #333;
+  background: #f0f0f0;
+  border-radius: 4px;
+}
+
+/* Task content - editable! */
+.task-content {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  min-width: 0;
+  position: relative; /* For indent controls */
+}
+
+/* Indent/Outdent button - ONE BUTTON TO RULE THEM ALL! */
+.indent-controls {
+  position: absolute;
+  right: 8px;
+  top: 50%;
+  transform: translateY(-50%);
+  display: none;
+}
+
+.task:hover .indent-controls {
+  display: block;
+}
+
+.indent-btn {
+  width: 24px;
+  height: 24px;
+  background: #fff;
+  border: 1px solid #ddd;
+  border-radius: 4px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 12px;
+  color: #666;
+  padding: 0;
+  transition: all 0.2s;
+}
+
+.indent-btn:hover {
+  background: #2196F3;
+  border-color: #2196F3;
+  color: #fff;
+  transform: scale(1.1);
+  box-shadow: 0 2px 4px rgba(33, 150, 243, 0.3);
+}
+
+.task-name {
+  font-weight: 600;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  padding: 2px 4px;
+  border-radius: 2px;
+  cursor: text;
+}
+
+.task-name:hover {
+  background: #f0f0f0;
+}
+
+.task-name.editing {
+  background: #fff;
+  border: 2px solid #2196F3;
+  outline: none;
+  overflow: visible;
+  white-space: normal;
+}
+
+.task-meta {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  font-size: 11px;
+  margin-top: 2px;
+}
+
+.owner {
+  background: #000;
+  color: #fff;
+  padding: 2px 6px;
+  border-radius: 2px;
+  cursor: pointer;
+}
+
+.owner:hover {
+  background: #333;
+}
+
+.duration {
+  cursor: pointer;
+  padding: 1px 4px;
+  border-radius: 2px;
+}
+
+.duration:hover {
+  background: #f0f0f0;
+}
+
+.progress-badge {
+  cursor: pointer;
+  padding: 1px 4px;
+  border-radius: 2px;
+}
+
+.progress-badge:hover {
+  background: #f0f0f0;
+}
+
+.chart-row {
+  position: relative;
+  border-bottom: 1px solid #f0f0f0;
+  height: 48px; /* Explicit height matching grid */
+}
+
+.bar {
+  position: absolute;
+  top: 10px;
+  height: 28px;
+  border-radius: 4px;
+  display: flex;
+  align-items: center;
+  padding: 0 8px;
+  color: #fff;
+  font-size: 11px;
+  cursor: pointer;
+  box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.bar:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 4px 8px rgba(0,0,0,0.15);
+  z-index: 5;
+}
+
+.bar.nj {
+  background: linear-gradient(135deg, #2196F3, #1976D2);
+}
+
+.bar.team {
+  background: linear-gradient(135deg, #FF9800, #F57C00);
+}
+
+.progress {
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  height: 3px;
+  background: rgba(255,255,255,0.5);
+  border-radius: 0 0 4px 4px;
+}
+
+/* Today marker - because we care about NOW */
+.today-marker {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  width: 2px;
+  background: #ff4444;
+  pointer-events: none;
+  z-index: 15;
+  box-shadow: 0 0 4px rgba(255, 68, 68, 0.5);
+}
+
+/* Controls */
+button {
+  padding: 8px 16px;
+  background: #000;
+  color: #fff;
+  border: 0;
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 12px;
+}
+
+button:hover {
+  background: #333;
+}
+
+/* Make scrollbars thin */
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+::-webkit-scrollbar-track {
+  background: #f1f1f1;
+}
+
+::-webkit-scrollbar-thumb {
+  background: #888;
+  border-radius: 4px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: #555;
+}
+
+/* Drop indicator - shows where the task will land */
+.drop-indicator {
+  position: absolute;
+  left: 0;
+  right: 0;
+  height: 2px;
+  background: #2196F3;
+  pointer-events: none;
+  z-index: 100;
+  opacity: 0;
+  transition: opacity 0.2s;
+}
+
+.drop-indicator.active {
+  opacity: 1;
+}
+
+.drop-indicator::before {
+  content: "";
+  position: absolute;
+  left: 8px;
+  top: -3px;
+  width: 8px;
+  height: 8px;
+  background: #2196F3;
+  border-radius: 50%;
+}
+
+/* Task list needs position relative for drop indicator */
+.task-list {
+  background: #f8f8f8;
+  border-right: 1px solid #ddd;
+  position: relative;
+}
+</style>
+</head>
+<body>
+
+<div class="app">
+  <div class="header">
+    <h1>Fluenta Tempus</h1>
+    <div class="subtitle">Magnifico Timeline - 20px per Day!</div>
+  </div>
+  
+  <div class="controls">
+    <button onclick="addTask()">+ Task</button>
+    <button onclick="save()">💾 Save</button>
+    <button onclick="load()">📁 Load</button>
+  </div>
+  
+  <div class="timeline-header" id="timeline"></div>
+  
+  <div class="content">
+    <div class="task-list" id="taskList"></div>
+    <div class="chart" id="chart"></div>
+  </div>
+</div>
+
+<script>
+// Minimal data structure following Fluenta Tempus philosophy
+let project = {
+  version: "1.1.0", // Magnifico Subtasks!
+  name: "Website Relaunch",
+  startDate: "2025-01-20",
+  resources: {
+    "NJ": { name: "Norman Janert", color: "#2196F3", weeklyHours: 40 },
+    "Team": { name: "Team", color: "#FF9800", weeklyHours: 80 }
+  },
+  tasks: [
+    { id: 1, name: "Requirements", owner: "NJ", duration: 5, progress: 100, deps: [], indent: 0 },
+    { id: 2, name: "User Stories", owner: "NJ", duration: 2, progress: 100, deps: [1], indent: 1 },
+    { id: 3, name: "Technical Spec", owner: "NJ", duration: 3, progress: 100, deps: [1], indent: 1 },
+    { id: 4, name: "Design", owner: "NJ", duration: 8, progress: 75, deps: [3], indent: 0 },
+    { id: 5, name: "Wireframes", owner: "NJ", duration: 3, progress: 100, deps: [4], indent: 1 },
+    { id: 6, name: "Mockups", owner: "NJ", duration: 5, progress: 60, deps: [5], indent: 1 },
+    { id: 7, name: "Development", owner: "Team", duration: 15, progress: 30, deps: [6], indent: 0 },
+    { id: 8, name: "Frontend", owner: "Team", duration: 8, progress: 40, deps: [7], indent: 1 },
+    { id: 9, name: "Backend", owner: "Team", duration: 7, progress: 20, deps: [7], indent: 1 },
+    { id: 10, name: "Testing", owner: "NJ", duration: 5, progress: 0, deps: [9], indent: 0 },
+    { id: 11, name: "Deployment", owner: "Team", duration: 3, progress: 0, deps: [10], indent: 0 }
+  ]
+};
+
+let draggedTask = null;
+const PIXELS_PER_DAY = 20; // MAGNIFICO! Each day is visible!
+
+// Calculate schedule based on dependencies
+function calculateSchedule() {
+  const schedule = {};
+  const start = new Date(project.startDate);
+  
+  project.tasks.forEach(task => {
+    let taskStart = new Date(start);
+    
+    // Check dependencies
+    if (task.deps && task.deps.length > 0) {
+      task.deps.forEach(depId => {
+        const dep = schedule[depId];
+        if (dep && dep.end > taskStart) {
+          taskStart = new Date(dep.end);
+        }
+      });
+    }
+    
+    const taskEnd = new Date(taskStart);
+    taskEnd.setDate(taskEnd.getDate() + task.duration);
+    
+    schedule[task.id] = {
+      start: taskStart,
+      end: taskEnd,
+      task: task
+    };
+  });
+  
+  return schedule;
+}
+
+// Calculate total project duration
+function getProjectEndDate() {
+  const schedule = calculateSchedule();
+  let maxEnd = new Date(project.startDate);
+  
+  Object.values(schedule).forEach(s => {
+    if (s.end > maxEnd) maxEnd = s.end;
+  });
+  
+  // Add some buffer days
+  maxEnd.setDate(maxEnd.getDate() + 30);
+  return maxEnd;
+}
+
+// Render timeline header with individual days - GENIAL!
+function renderTimeline() {
+  const timeline = document.getElementById('timeline');
+  const timelineScroll = document.createElement('div');
+  timelineScroll.className = 'timeline-scroll';
+  
+  const startDate = new Date(project.startDate);
+  const endDate = getProjectEndDate();
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  
+  let currentMonth = '';
+  let monthStart = 0;
+  let dayIndex = 0;
+  
+  for (let d = new Date(startDate); d <= endDate; d.setDate(d.getDate() + 1)) {
+    const month = d.toLocaleDateString('en', { month: 'short', year: 'numeric' });
+    const day = d.getDate();
+    const isWeekend = d.getDay() === 0 || d.getDay() === 6;
+    const isMonday = d.getDay() === 1;
+    const isToday = d.getTime() === today.getTime();
+    
+    // Create day element
+    const dayEl = document.createElement('div');
+    dayEl.className = 'day';
+    if (isWeekend) dayEl.classList.add('weekend');
+    if (isMonday) dayEl.classList.add('week-start');
+    
+    // Add month label when month changes
+    if (month !== currentMonth) {
+      if (currentMonth) {
+        // Create subtle month label for previous month
+        const monthLabel = document.createElement('div');
+        monthLabel.className = 'month-label';
+        monthLabel.textContent = currentMonth;
+        monthLabel.style.left = `${monthStart * PIXELS_PER_DAY + 2}px`;
+        timelineScroll.appendChild(monthLabel);
+      }
+      
+      // Add month separator line
+      if (dayIndex > 0) {
+        const monthLine = document.createElement('div');
+        monthLine.className = 'month-line';
+        monthLine.style.left = `${dayIndex * PIXELS_PER_DAY - 1}px`;
+        timelineScroll.appendChild(monthLine);
+        
+        dayEl.classList.add('month-start');
+      }
+      
+      currentMonth = month;
+      monthStart = dayIndex;
+    }
+    
+    const dayNum = document.createElement('div');
+    dayNum.className = 'day-number';
+    dayNum.textContent = day;
+    
+    const dayName = document.createElement('div');
+    dayName.className = 'day-name';
+    dayName.textContent = d.toLocaleDateString('en', { weekday: 'short' })[0];
+    
+    dayEl.appendChild(dayNum);
+    dayEl.appendChild(dayName);
+    timelineScroll.appendChild(dayEl);
+    
+    // Add today marker
+    if (isToday) {
+      const marker = document.createElement('div');
+      marker.className = 'today-marker';
+      marker.style.left = `${dayIndex * PIXELS_PER_DAY + PIXELS_PER_DAY / 2}px`;
+      timelineScroll.appendChild(marker);
+    }
+    
+    dayIndex++;
+  }
+  
+  // Add last month label
+  if (currentMonth) {
+    const monthLabel = document.createElement('div');
+    monthLabel.className = 'month-label';
+    monthLabel.textContent = currentMonth;
+    monthLabel.style.left = `${monthStart * PIXELS_PER_DAY + 2}px`;
+    timelineScroll.appendChild(monthLabel);
+  }
+  
+  timeline.innerHTML = '';
+  timeline.appendChild(timelineScroll);
+  
+  // Set chart width to match timeline
+  const chart = document.getElementById('chart');
+  chart.style.minWidth = `${dayIndex * PIXELS_PER_DAY}px`;
+}
+
+// Render tasks and chart with PERFECT alignment
+function render() {
+  const schedule = calculateSchedule();
+  const taskList = document.getElementById('taskList');
+  const chart = document.getElementById('chart');
+  const startDate = new Date(project.startDate);
+  
+  // Clear existing content
+  taskList.innerHTML = '';
+  chart.innerHTML = '';
+  
+  // Create chart scroll container
+  const chartScroll = document.createElement('div');
+  chartScroll.className = 'chart-scroll';
+  
+  // Calculate chart width based on timeline
+  const endDate = getProjectEndDate();
+  const totalDays = Math.floor((endDate - startDate) / (1000 * 60 * 60 * 24));
+  chartScroll.style.width = `${totalDays * PIXELS_PER_DAY}px`;
+  
+  // Add today marker to chart
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  const todayDiff = Math.floor((today - startDate) / (1000 * 60 * 60 * 24));
+  if (todayDiff >= 0 && todayDiff <= totalDays) {
+    const marker = document.createElement('div');
+    marker.className = 'today-marker';
+    marker.style.left = `${todayDiff * PIXELS_PER_DAY + PIXELS_PER_DAY / 2}px`;
+    chartScroll.appendChild(marker);
+  }
+  
+  // Create matching rows for each task
+  project.tasks.forEach((task, index) => {
+    // Task row with drag handle
+    const taskEl = document.createElement('div');
+    taskEl.className = `task indent-${task.indent || 0}`;
+    taskEl.dataset.id = task.id;
+    
+    // Determine if this is a parent task (has children)
+    const nextTask = project.tasks[index + 1];
+    const isParent = nextTask && nextTask.indent > (task.indent || 0);
+    
+    // One button - context sensitive!
+    const isSubtask = (task.indent || 0) > 0;
+    const buttonIcon = isSubtask ? '←' : '→';
+    const buttonTitle = isSubtask ? 'Make main task' : 'Make subtask';
+    
+    taskEl.innerHTML = `
+      <div class="drag-handle" draggable="true">
+        <span>${isParent ? '▼' : '≡'}</span>
+      </div>
+      <div class="task-content">
+        <div class="task-name" contenteditable="true" data-field="name">${task.id}. ${task.name}</div>
+        <div class="task-meta">
+          <span class="owner" data-field="owner">${task.owner}</span>
+          <span class="duration" data-field="duration">${task.duration}d</span>
+          <span class="progress-badge" data-field="progress">${task.progress}%</span>
+        </div>
+        <div class="indent-controls">
+          <button class="indent-btn" title="${buttonTitle}">${buttonIcon}</button>
+        </div>
+      </div>
+    `;
+    
+    // ONE button with ONE function!
+    const indentBtn = taskEl.querySelector('.indent-btn');
+    indentBtn.onclick = (e) => {
+      e.stopPropagation();
+      e.preventDefault();
+      // Toggle between 0 and 1 - THAT'S IT!
+      task.indent = (task.indent || 0) === 0 ? 1 : 0;
+      render();
+    };
+    
+    // Make task name editable
+    const nameEl = taskEl.querySelector('.task-name');
+    nameEl.addEventListener('focus', () => {
+      nameEl.classList.add('editing');
+      // Select text content without the number prefix
+      const range = document.createRange();
+      const textNode = nameEl.firstChild;
+      if (textNode) {
+        const text = textNode.textContent;
+        const dotIndex = text.indexOf('. ');
+        if (dotIndex !== -1) {
+          range.setStart(textNode, dotIndex + 2);
+          range.setEnd(textNode, text.length);
+          const sel = window.getSelection();
+          sel.removeAllRanges();
+          sel.addRange(range);
+        }
+      }
+    });
+    
+    nameEl.addEventListener('blur', (e) => {
+      nameEl.classList.remove('editing');
+      const newName = e.target.textContent.replace(/^\d+\.\s*/, '');
+      if (newName !== task.name) {
+        task.name = newName;
+        render();
+      }
+    });
+    
+    nameEl.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter') {
+        e.preventDefault();
+        nameEl.blur();
+      }
+    });
+    
+    // Make other fields clickable for editing
+    taskEl.querySelector('.owner').onclick = () => editOwner(task.id);
+    taskEl.querySelector('.duration').onclick = () => editDuration(task.id);
+    taskEl.querySelector('.progress-badge').onclick = () => editProgress(task.id);
+    
+    taskList.appendChild(taskEl);
+    
+    // Chart row - subtasks slightly transparent
+    const chartRow = document.createElement('div');
+    chartRow.className = 'chart-row';
+    
+    const s = schedule[task.id];
+    if (s) {
+      const daysDiff = Math.floor((s.start - startDate) / (1000 * 60 * 60 * 24));
+      const left = Math.max(0, daysDiff * PIXELS_PER_DAY);
+      const width = task.duration * PIXELS_PER_DAY;
+      
+      const bar = document.createElement('div');
+      bar.className = `bar ${task.owner.toLowerCase()}`;
+      bar.style.left = `${left}px`;
+      bar.style.width = `${width}px`;
+      
+      // Subtasks get slightly different styling
+      if (task.indent > 0) {
+        bar.style.height = '24px';
+        bar.style.top = '12px';
+        bar.style.opacity = '0.9';
+      }
+      
+      bar.innerHTML = `
+        ${task.name}
+        <div class="progress" style="width: ${task.progress}%"></div>
+      `;
+      bar.onclick = () => editProgress(task.id);
+      
+      chartRow.appendChild(bar);
+    }
+    
+    chartScroll.appendChild(chartRow);
+  });
+  
+  chart.appendChild(chartScroll);
+  
+  // Sync scrolling between task list and chart (vertical)
+  taskList.onscroll = () => chart.scrollTop = taskList.scrollTop;
+  chart.onscroll = () => {
+    taskList.scrollTop = chart.scrollTop;
+    document.getElementById('timeline').scrollLeft = chart.scrollLeft;
+  };
+  
+  // Sync timeline with chart (horizontal)
+  document.getElementById('timeline').onscroll = (e) => {
+    chart.scrollLeft = e.target.scrollLeft;
+  };
+}
+
+// Drag and drop for reordering (Position = Priority!)
+let draggedTaskFamily = [];
+
+document.addEventListener('dragstart', e => {
+  if (e.target.classList.contains('drag-handle')) {
+    draggedTask = e.target.closest('.task');
+    const draggedId = parseInt(draggedTask.dataset.id);
+    const draggedTaskData = project.tasks.find(t => t.id === draggedId);
+    
+    // Collect the whole family if dragging a parent task
+    draggedTaskFamily = [draggedTaskData];
+    
+    // If this is a main task (indent 0), collect all its subtasks
+    if ((draggedTaskData.indent || 0) === 0) {
+      const startIndex = project.tasks.indexOf(draggedTaskData);
+      for (let i = startIndex + 1; i < project.tasks.length; i++) {
+        if ((project.tasks[i].indent || 0) > 0) {
+          draggedTaskFamily.push(project.tasks[i]);
+        } else {
+          break; // Stop at next main task
+        }
+      }
+    }
+    
+    // Mark all family members as dragging
+    draggedTaskFamily.forEach(task => {
+      const el = document.querySelector(`.task[data-id="${task.id}"]`);
+      if (el) el.classList.add('dragging');
+    });
+    
+    e.dataTransfer.effectAllowed = 'move';
+  }
+});
+
+document.addEventListener('dragend', e => {
+  if (draggedTask) {
+    // Remove dragging class from all family members
+    document.querySelectorAll('.task.dragging').forEach(el => {
+      el.classList.remove('dragging');
+    });
+    
+    // Get new order from DOM
+    const newOrder = [];
+    const taskElements = document.querySelectorAll('.task');
+    
+    taskElements.forEach(el => {
+      const id = parseInt(el.dataset.id);
+      const task = project.tasks.find(t => t.id === id);
+      if (task && !draggedTaskFamily.includes(task)) {
+        newOrder.push(task);
+      }
+    });
+    
+    // Insert the dragged family at the new position
+    const insertIndex = Array.from(taskElements).indexOf(draggedTask);
+    newOrder.splice(insertIndex, 0, ...draggedTaskFamily);
+    
+    // Update project tasks
+    project.tasks = newOrder;
+    
+    // Update IDs to reflect new priority (position = priority!)
+    project.tasks.forEach((task, i) => task.id = i + 1);
+    
+    draggedTask = null;
+    draggedTaskFamily = [];
+    render();
+  }
+});
+
+document.addEventListener('dragover', e => {
+  e.preventDefault();
+  if (!draggedTask) return;
+  
+  const taskList = document.getElementById('taskList');
+  const draggedId = parseInt(draggedTask.dataset.id);
+  const draggedTaskData = project.tasks.find(t => t.id === draggedId);
+  const isMainTask = (draggedTaskData.indent || 0) === 0;
+  
+  // Remove any existing drop indicator
+  const existingIndicator = document.querySelector('.drop-indicator');
+  if (existingIndicator) existingIndicator.remove();
+  
+  // Find the element we're hovering over
+  const hoverElement = [...taskList.querySelectorAll('.task:not(.dragging)')].find(child => {
+    const box = child.getBoundingClientRect();
+    return e.clientY < box.top + box.height / 2;
+  });
+  
+  // Create drop indicator
+  const indicator = document.createElement('div');
+  indicator.className = 'drop-indicator active';
+  
+  if (hoverElement) {
+    const hoverId = parseInt(hoverElement.dataset.id);
+    const hoverTask = project.tasks.find(t => t.id === hoverId);
+    
+    // RULE: Main tasks can only be inserted before other main tasks or at family boundaries
+    if (isMainTask && (hoverTask.indent || 0) > 0) {
+      // Find the parent of this subtask family
+      let parentElement = hoverElement;
+      while (parentElement.previousElementSibling) {
+        const prevElement = parentElement.previousElementSibling;
+        const prevId = parseInt(prevElement.dataset.id);
+        const prevTask = project.tasks.find(t => t.id === prevId);
+        if ((prevTask.indent || 0) === 0) {
+          parentElement = prevElement;
+          break;
+        }
+        parentElement = prevElement;
+      }
+      
+      // Show indicator before the parent
+      const rect = parentElement.getBoundingClientRect();
+      const listRect = taskList.getBoundingClientRect();
+      indicator.style.top = (rect.top - listRect.top - 1) + 'px';
+      taskList.appendChild(indicator);
+      
+      // Move all family members together BEFORE the parent
+      const fragment = document.createDocumentFragment();
+      draggedTaskFamily.forEach(task => {
+        const el = document.querySelector(`.task[data-id="${task.id}"]`);
+        if (el) fragment.appendChild(el);
+      });
+      taskList.insertBefore(fragment, parentElement);
+    } else {
+      // Show indicator at hover position
+      const rect = hoverElement.getBoundingClientRect();
+      const listRect = taskList.getBoundingClientRect();
+      indicator.style.top = (rect.top - listRect.top - 1) + 'px';
+      taskList.appendChild(indicator);
+      
+      // Normal insertion for subtasks or main task before main task
+      const fragment = document.createDocumentFragment();
+      draggedTaskFamily.forEach(task => {
+        const el = document.querySelector(`.task[data-id="${task.id}"]`);
+        if (el) fragment.appendChild(el);
+      });
+      taskList.insertBefore(fragment, hoverElement);
+    }
+  } else {
+    // Show indicator at the end
+    const lastTask = taskList.lastElementChild;
+    if (lastTask && !lastTask.classList.contains('dragging')) {
+      const rect = lastTask.getBoundingClientRect();
+      const listRect = taskList.getBoundingClientRect();
+      indicator.style.top = (rect.bottom - listRect.top - 1) + 'px';
+      taskList.appendChild(indicator);
+    }
+    
+    // Append at the end
+    const fragment = document.createDocumentFragment();
+    draggedTaskFamily.forEach(task => {
+      const el = document.querySelector(`.task[data-id="${task.id}"]`);
+      if (el) fragment.appendChild(el);
+    });
+    taskList.appendChild(fragment);
+  }
+});
+
+document.addEventListener('dragleave', e => {
+  // Clean up drop indicator when leaving the drop zone
+  if (!e.relatedTarget || !e.relatedTarget.closest('.task-list')) {
+    const indicator = document.querySelector('.drop-indicator');
+    if (indicator) indicator.remove();
+  }
+});
+
+// Simple functions
+function addTask() {
+  const name = prompt("Task name:");
+  if (name) {
+    const lastTask = project.tasks[project.tasks.length - 1];
+    project.tasks.push({
+      id: project.tasks.length + 1,
+      name: name,
+      owner: "NJ",
+      duration: 5,
+      progress: 0,
+      deps: lastTask ? [lastTask.id] : [],
+      indent: 0 // New tasks are main tasks
+    });
+    renderTimeline();
+    render();
+  }
+}
+
+function editOwner(id) {
+  const task = project.tasks.find(t => t.id === id);
+  if (task) {
+    const owners = Object.keys(project.resources).join(', ');
+    const value = prompt(`Owner for "${task.name}" (${owners}):`, task.owner);
+    if (value !== null && project.resources[value]) {
+      task.owner = value;
+      render();
+    }
+  }
+}
+
+function editDuration(id) {
+  const task = project.tasks.find(t => t.id === id);
+  if (task) {
+    const value = prompt(`Duration for "${task.name}" (days):`, task.duration);
+    if (value !== null) {
+      task.duration = Math.max(1, parseInt(value) || 1);
+      renderTimeline();
+      render();
+    }
+  }
+}
+
+function editProgress(id) {
+  const task = project.tasks.find(t => t.id === id);
+  if (task) {
+    const value = prompt(`Progress for "${task.name}" (0-100):`, task.progress);
+    if (value !== null) {
+      task.progress = Math.min(100, Math.max(0, parseInt(value) || 0));
+      render();
+    }
+  }
+}
+
+function save() {
+  localStorage.setItem('fluenta-tempus', JSON.stringify(project));
+  alert('Saved!');
+}
+
+function load() {
+  const saved = localStorage.getItem('fluenta-tempus');
+  if (saved) {
+    project = JSON.parse(saved);
+    renderTimeline();
+    render();
+  }
+}
+
+// Initial render
+renderTimeline();
+render();
+</script>
+
+</body>
+</html>
