@@ -102,7 +102,7 @@ body { font: 13px system-ui; background: #fff; }
   background: #f8f8f8;
   border-bottom: 1px solid #ddd;
   border-left: 1px solid #ddd;
-  overflow-x: auto;
+  overflow: hidden; /* NO SCROLLBAR! Chart controls it! */
   display: flex;
   height: 48px;
   position: relative;
@@ -112,6 +112,7 @@ body { font: 13px system-ui; background: #fff; }
   display: flex;
   position: relative;
   padding-top: 12px; /* Space for month labels */
+  transition: transform 0ms; /* Smooth scroll sync */
 }
 
 /* Each day gets its own column - GENIAL! */
@@ -192,7 +193,7 @@ body { font: 13px system-ui; background: #fff; }
   display: grid;
   grid-auto-rows: 48px;
   overflow-y: auto;
-  overflow-x: hidden;
+  overflow-x: hidden; /* NO horizontal scroll - stays fixed! */
 }
 
 /* Collapse/Expand toggle - SEPARATE from drag handle! */
@@ -955,9 +956,9 @@ function renderTimeline() {
   timeline.innerHTML = '';
   timeline.appendChild(timelineScroll);
   
-  // Set chart width to match timeline
-  const chart = document.getElementById('chart');
-  chart.style.minWidth = `${dayIndex * PIXELS_PER_DAY}px`;
+  // CRITICAL: Both timeline and chart need same width!
+  const totalWidth = dayIndex * PIXELS_PER_DAY;
+  timelineScroll.style.width = `${totalWidth}px`;
 }
 
 // Calculate aggregated values for parent tasks
@@ -1028,10 +1029,11 @@ function render() {
   const chartScroll = document.createElement('div');
   chartScroll.className = 'chart-scroll';
   
-  // Calculate chart width based on timeline
+  // Calculate chart width based on timeline - MUST MATCH!
   const endDate = getProjectEndDate();
   const totalDays = Math.floor((endDate - startDate) / (1000 * 60 * 60 * 24));
-  chartScroll.style.width = `${totalDays * PIXELS_PER_DAY}px`;
+  const totalWidth = totalDays * PIXELS_PER_DAY;
+  chartScroll.style.width = `${totalWidth}px`;
   
   // Add today marker to chart
   const today = new Date();
@@ -1262,16 +1264,31 @@ function render() {
   
   chart.appendChild(chartScroll);
   
-  // Sync scrolling between task list and chart (vertical)
-  taskList.onscroll = () => chart.scrollTop = taskList.scrollTop;
-  chart.onscroll = () => {
-    taskList.scrollTop = chart.scrollTop;
-    document.getElementById('timeline').scrollLeft = chart.scrollLeft;
+  // SINGLE SOURCE OF TRUTH: Chart controls all scrolling!
+  let isScrolling = false;
+  
+  // Vertical sync: Task list <-> Chart
+  taskList.onscroll = () => {
+    if (!isScrolling) {
+      isScrolling = true;
+      chart.scrollTop = taskList.scrollTop;
+      isScrolling = false;
+    }
   };
   
-  // Sync timeline with chart (horizontal)
-  document.getElementById('timeline').onscroll = (e) => {
-    chart.scrollLeft = e.target.scrollLeft;
+  // Chart is the MASTER - it controls both timeline and task list!
+  chart.onscroll = () => {
+    if (!isScrolling) {
+      isScrolling = true;
+      // Vertical to task list
+      taskList.scrollTop = chart.scrollTop;
+      // Horizontal to timeline (move the inner scroll container)
+      const timelineScroll = document.getElementById('timeline').querySelector('.timeline-scroll');
+      if (timelineScroll) {
+        timelineScroll.style.transform = `translateX(-${chart.scrollLeft}px)`;
+      }
+      isScrolling = false;
+    }
   };
 }
 
