@@ -498,6 +498,125 @@ button:hover {
   background: #f8f8f8;
   border-right: 1px solid #ddd;
 }
+
+/* Modal - MINIMAL aber ELEGANT! */
+.modal {
+  display: none;
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(0,0,0,0.5);
+  z-index: 100;
+  align-items: center;
+  justify-content: center;
+}
+
+.modal.active {
+  display: flex;
+}
+
+.modal-content {
+  background: #fff;
+  border-radius: 8px;
+  padding: 24px;
+  min-width: 400px;
+  max-width: 500px;
+  box-shadow: 0 8px 32px rgba(0,0,0,0.2);
+}
+
+.modal-header {
+  margin-bottom: 16px;
+}
+
+.modal-header h3 {
+  font-size: 18px;
+  margin: 0;
+}
+
+.modal-header .task-title {
+  color: #666;
+  font-size: 14px;
+  margin-top: 4px;
+}
+
+.deps-selector {
+  margin: 16px 0;
+}
+
+.deps-list {
+  border: 1px solid #ddd;
+  border-radius: 4px;
+  max-height: 200px;
+  overflow-y: auto;
+  padding: 8px;
+  background: #fafafa;
+}
+
+.dep-option {
+  padding: 8px;
+  margin-bottom: 4px;
+  border-radius: 4px;
+  cursor: pointer;
+  background: #fff;
+  border: 1px solid #e0e0e0;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.dep-option:hover {
+  background: #e3f2fd;
+  border-color: #2196F3;
+}
+
+.dep-option.selected {
+  background: #2196F3;
+  color: #fff;
+  border-color: #1976D2;
+}
+
+.dep-option input[type="checkbox"] {
+  margin: 0;
+}
+
+.dep-option .task-id {
+  font-weight: 600;
+  min-width: 30px;
+}
+
+.dep-option .task-name {
+  flex: 1;
+}
+
+.modal-footer {
+  display: flex;
+  gap: 8px;
+  justify-content: flex-end;
+  margin-top: 24px;
+}
+
+.modal-footer button {
+  padding: 8px 20px;
+}
+
+.btn-cancel {
+  background: #666;
+}
+
+.btn-cancel:hover {
+  background: #999;
+}
+
+.current-deps {
+  margin-top: 8px;
+  padding: 8px;
+  background: #f0f0f0;
+  border-radius: 4px;
+  font-size: 12px;
+  color: #666;
+}
 </style>
 </head>
 <body>
@@ -519,6 +638,31 @@ button:hover {
   <div class="content">
     <div class="task-list" id="taskList"></div>
     <div class="chart" id="chart"></div>
+  </div>
+</div>
+
+<!-- Dependency Modal - MINIMAL & ELEGANT! -->
+<div class="modal" id="depsModal">
+  <div class="modal-content">
+    <div class="modal-header">
+      <h3>Dependencies</h3>
+      <div class="task-title" id="modalTaskName"></div>
+    </div>
+    
+    <div class="deps-selector">
+      <div style="margin-bottom: 8px; font-size: 13px; color: #666;">
+        Select tasks that must complete before this task can start:
+      </div>
+      <div class="deps-list" id="depsList">
+        <!-- Options will be added dynamically -->
+      </div>
+      <div class="current-deps" id="currentDeps"></div>
+    </div>
+    
+    <div class="modal-footer">
+      <button class="btn-cancel" onclick="closeDepsModal()">Cancel</button>
+      <button onclick="saveDependencies()">Save</button>
+    </div>
   </div>
 </div>
 
@@ -550,10 +694,20 @@ let project = {
 let draggedTask = null;
 const PIXELS_PER_DAY = 20; // MAGNIFICO! Each day is visible!
 
-// Calculate schedule based on dependencies and hierarchy - RESPECTING WEEKENDS!
+// Calculate schedule based on dependencies and RESOURCE AVAILABILITY - THE REAL DEAL!
 function calculateSchedule() {
   const schedule = {};
   const start = new Date(project.startDate);
+  
+  // RESOURCE TRACKING - When is each resource free?
+  const resourceAvailability = {};
+  Object.keys(project.resources).forEach(res => {
+    resourceAvailability[res] = new Date(start);
+    // Skip to first working day
+    while (resourceAvailability[res].getDay() === 0 || resourceAvailability[res].getDay() === 6) {
+      resourceAvailability[res].setDate(resourceAvailability[res].getDate() + 1);
+    }
+  });
   
   // Helper function to add working days
   function addWorkingDays(startDate, days) {
@@ -571,43 +725,30 @@ function calculateSchedule() {
     return date;
   }
   
-  // Helper function to count working days between dates
-  function getWorkingDays(start, end) {
-    let count = 0;
-    const current = new Date(start);
-    
-    while (current < end) {
-      if (current.getDay() !== 0 && current.getDay() !== 6) {
-        count++;
-      }
-      current.setDate(current.getDate() + 1);
+  // Helper to skip to next working day
+  function skipToWorkingDay(date) {
+    const d = new Date(date);
+    while (d.getDay() === 0 || d.getDay() === 6) {
+      d.setDate(d.getDate() + 1);
     }
-    
-    return count;
+    return d;
   }
   
   project.tasks.forEach(task => {
     let taskStart = new Date(start);
     
-    // Skip to next working day if starting on weekend
-    while (taskStart.getDay() === 0 || taskStart.getDay() === 6) {
-      taskStart.setDate(taskStart.getDate() + 1);
-    }
+    // STEP 1: Dependency constraints
+    let dependencyEnd = new Date(start);
     
-    // Main tasks start based on position and resource availability
     if ((task.indent || 0) === 0) {
-      // Main tasks can run in parallel if different resources
-      // They start at project start or when their resource is free
-      // For now, just use project start (could be enhanced with resource scheduling)
-      taskStart = new Date(start);
-      while (taskStart.getDay() === 0 || taskStart.getDay() === 6) {
-        taskStart.setDate(taskStart.getDate() + 1);
-      }
+      // Main tasks: no dependencies (position = priority)
+      dependencyEnd = new Date(start);
     } else {
-      // Subtasks respect dependencies AND parent timing
-      // Find parent task
-      let parentIndex = -1;
+      // Subtasks: check parent start and sibling dependencies
       const taskIndex = project.tasks.indexOf(task);
+      
+      // Find parent
+      let parentIndex = -1;
       for (let i = taskIndex - 1; i >= 0; i--) {
         if ((project.tasks[i].indent || 0) === 0) {
           parentIndex = i;
@@ -619,34 +760,42 @@ function calculateSchedule() {
         const parent = project.tasks[parentIndex];
         const parentSchedule = schedule[parent.id];
         if (parentSchedule) {
-          // Subtask can't start before parent
-          taskStart = new Date(parentSchedule.start);
+          // Can't start before parent
+          dependencyEnd = new Date(parentSchedule.start);
         }
       }
       
-      // Check subtask dependencies
+      // Check explicit dependencies
       if (task.deps && task.deps.length > 0) {
         task.deps.forEach(depId => {
           const dep = schedule[depId];
-          if (dep && dep.end > taskStart) {
-            taskStart = new Date(dep.end);
-            // Skip to next working day if dependency ends on weekend
-            while (taskStart.getDay() === 0 || taskStart.getDay() === 6) {
-              taskStart.setDate(taskStart.getDate() + 1);
-            }
+          if (dep && dep.end > dependencyEnd) {
+            dependencyEnd = new Date(dep.end);
           }
         });
       }
     }
     
-    // Calculate end date using working days only
+    // STEP 2: Resource constraints - THE MAGIC!
+    const resourceFree = resourceAvailability[task.owner] || new Date(start);
+    
+    // STEP 3: Task starts when BOTH constraints are met
+    taskStart = new Date(Math.max(dependencyEnd, resourceFree));
+    taskStart = skipToWorkingDay(taskStart);
+    
+    // STEP 4: Calculate end and update resource availability
     const taskEnd = addWorkingDays(taskStart, task.duration - 1);
     
+    // CRITICAL: Update when resource will be free again
+    resourceAvailability[task.owner] = skipToWorkingDay(new Date(taskEnd.getTime() + 24*60*60*1000));
+    
+    // Store schedule
     schedule[task.id] = {
       start: taskStart,
       end: taskEnd,
       task: task,
-      workingDays: task.duration
+      workingDays: task.duration,
+      resource: task.owner
     };
   });
   
@@ -1253,6 +1402,34 @@ function editProgress(id) {
   }
 }
 
+// Global for modal state
+let editingTaskId = null;
+
+// Check if adding a dependency would create a cycle
+function wouldCreateCycle(taskId, potentialDepId) {
+  // Check if potentialDep depends on task (directly or indirectly)
+  const visited = new Set();
+  
+  function hasDependency(fromId, toId) {
+    if (visited.has(fromId)) return false;
+    visited.add(fromId);
+    
+    const fromTask = project.tasks.find(t => t.id === fromId);
+    if (!fromTask || !fromTask.deps) return false;
+    
+    if (fromTask.deps.includes(toId)) return true;
+    
+    // Check transitive dependencies
+    for (const depId of fromTask.deps) {
+      if (hasDependency(depId, toId)) return true;
+    }
+    
+    return false;
+  }
+  
+  return hasDependency(potentialDepId, taskId);
+}
+
 function editDependencies(id) {
   const task = project.tasks.find(t => t.id === id);
   if (task) {
@@ -1262,10 +1439,12 @@ function editDependencies(id) {
       return;
     }
     
-    let availableTasks = [];
-    let validTaskIds = [];
+    editingTaskId = id;
     
-    // Subtasks can only depend on sibling subtasks (same parent)
+    // Setup modal header
+    document.getElementById('modalTaskName').textContent = `Task ${task.id}: ${task.name}`;
+    
+    // Find available sibling tasks
     const taskIndex = project.tasks.indexOf(task);
     
     // Find parent task
@@ -1286,41 +1465,103 @@ function editDependencies(id) {
       }
     }
     
-    // Get sibling subtasks that come before this task
-    availableTasks = project.tasks
-      .slice(parentIndex + 1, taskIndex)
-      .filter(t => (t.indent || 0) === 1)
-      .map(t => `${t.id}: ${t.name}`);
+    // Get sibling subtasks
+    const siblings = project.tasks
+      .slice(parentIndex + 1, endIndex)
+      .filter(t => (t.indent || 0) === 1 && t.id !== task.id);
     
-    validTaskIds = project.tasks
-      .slice(parentIndex + 1, taskIndex)
-      .filter(t => (t.indent || 0) === 1)
-      .map(t => t.id);
+    // Build the dependency list
+    const depsList = document.getElementById('depsList');
+    depsList.innerHTML = '';
     
-    const currentDeps = task.deps ? task.deps.join(',') : '';
-    const value = prompt(
-      `Dependencies for "${task.name}"\n` +
-      `(Subtasks can only depend on sibling subtasks)\n` +
-      `Enter task IDs separated by commas (e.g., 1,3)\n` +
-      `Available: ${availableTasks.length > 0 ? availableTasks.join(', ') : 'none'}`,
-      currentDeps
-    );
-    
-    if (value !== null) {
-      if (value.trim() === '') {
-        task.deps = [];
-      } else {
-        // Parse and validate dependencies
-        const newDeps = value.split(',').map(v => parseInt(v.trim())).filter(v => {
-          // Only allow valid task IDs from the allowed set
-          return !isNaN(v) && validTaskIds.includes(v);
-        });
-        task.deps = [...new Set(newDeps)]; // Remove duplicates
+    if (siblings.length === 0) {
+      depsList.innerHTML = '<div style="padding: 16px; text-align: center; color: #999;">No available tasks for dependencies</div>';
+    } else {
+      siblings.forEach(sibling => {
+        // Check if this would create a cycle
+        const wouldCycle = wouldCreateCycle(task.id, sibling.id);
+        
+        if (!wouldCycle) {
+          const option = document.createElement('div');
+          option.className = 'dep-option';
+          if (task.deps && task.deps.includes(sibling.id)) {
+            option.classList.add('selected');
+          }
+          
+          option.innerHTML = `
+            <input type="checkbox" 
+                   id="dep_${sibling.id}" 
+                   value="${sibling.id}"
+                   ${task.deps && task.deps.includes(sibling.id) ? 'checked' : ''}>
+            <label for="dep_${sibling.id}" style="flex: 1; display: flex; align-items: center; gap: 8px; cursor: pointer;">
+              <span class="task-id">${sibling.id}.</span>
+              <span class="task-name">${sibling.name}</span>
+            </label>
+          `;
+          
+          option.onclick = (e) => {
+            if (e.target.type !== 'checkbox') {
+              const checkbox = option.querySelector('input');
+              checkbox.checked = !checkbox.checked;
+            }
+            option.classList.toggle('selected');
+            updateCurrentDeps();
+          };
+          
+          depsList.appendChild(option);
+        }
+      });
+      
+      // If all siblings would create cycles
+      if (depsList.children.length === 0) {
+        depsList.innerHTML = '<div style="padding: 16px; text-align: center; color: #999;">No valid dependencies available (would create circular dependency)</div>';
       }
+    }
+    
+    updateCurrentDeps();
+    
+    // Show modal
+    document.getElementById('depsModal').classList.add('active');
+  }
+}
+
+function updateCurrentDeps() {
+  const selected = [];
+  document.querySelectorAll('.dep-option input:checked').forEach(checkbox => {
+    const task = project.tasks.find(t => t.id === parseInt(checkbox.value));
+    if (task) {
+      selected.push(`${task.id}.${task.name}`);
+    }
+  });
+  
+  const currentDepsEl = document.getElementById('currentDeps');
+  if (selected.length > 0) {
+    currentDepsEl.innerHTML = `<strong>Selected:</strong> ${selected.join(', ')}`;
+  } else {
+    currentDepsEl.innerHTML = '<em>No dependencies selected</em>';
+  }
+}
+
+function closeDepsModal() {
+  document.getElementById('depsModal').classList.remove('active');
+  editingTaskId = null;
+}
+
+function saveDependencies() {
+  if (editingTaskId) {
+    const task = project.tasks.find(t => t.id === editingTaskId);
+    if (task) {
+      const newDeps = [];
+      document.querySelectorAll('.dep-option input:checked').forEach(checkbox => {
+        newDeps.push(parseInt(checkbox.value));
+      });
+      
+      task.deps = newDeps;
       renderTimeline();
       render();
     }
   }
+  closeDepsModal();
 }
 
 function save() {
