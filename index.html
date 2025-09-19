@@ -454,6 +454,8 @@ button {
   border-radius: 4px;
   cursor: pointer;
   font-size: 12px;
+  min-width: 90px; /* 3 Buttons × 90px + 2 gaps = PERFEKT in 320px! */
+  text-align: center;
 }
 
 button:hover {
@@ -606,6 +608,7 @@ button:hover {
 
 .modal-footer button {
   padding: 8px 20px;
+  min-width: 80px; /* Modal buttons etwas kleiner */
 }
 
 .btn-cancel {
@@ -669,7 +672,6 @@ button:hover {
     <button onclick="addTask()">+ Task</button>
     <button onclick="exportJSON()">💾 Export</button>
     <button onclick="importJSON()">📁 Import</button>
-    <button onclick="save()" title="Save to browser">🌐 Local</button>
   </div>
   
   <div class="timeline-header" id="timeline"></div>
@@ -999,10 +1001,19 @@ function calculateParentValues() {
   }
 }
 
+// Auto-save to localStorage on every change
+function autoSave() {
+  localStorage.setItem('fluenta-tempus', JSON.stringify(project));
+  // No alert - silent save!
+}
+
 // Render tasks and chart with PERFECT alignment
 function render() {
   // First calculate parent values
   calculateParentValues();
+  
+  // Auto-save on every render
+  autoSave();
   
   const schedule = calculateSchedule();
   const taskList = document.getElementById('taskList');
@@ -1840,6 +1851,20 @@ function importJSON() {
 // Initial render
 renderTimeline();
 render();
+
+// Load from localStorage on startup
+window.addEventListener('DOMContentLoaded', () => {
+  const saved = localStorage.getItem('fluenta-tempus');
+  if (saved) {
+    try {
+      project = JSON.parse(saved);
+      renderTimeline();
+      render();
+    } catch(e) {
+      // Invalid data - use default
+    }
+  }
+});
 </script>
 
 </body>
