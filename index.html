@@ -667,8 +667,9 @@ button:hover {
   
   <div class="controls">
     <button onclick="addTask()">+ Task</button>
-    <button onclick="save()">💾 Save</button>
-    <button onclick="load()">📁 Load</button>
+    <button onclick="exportJSON()">💾 Export</button>
+    <button onclick="importJSON()">📁 Import</button>
+    <button onclick="save()" title="Save to browser">🌐 Local</button>
   </div>
   
   <div class="timeline-header" id="timeline"></div>
@@ -1753,7 +1754,7 @@ function editLink(id) {
 
 function save() {
   localStorage.setItem('fluenta-tempus', JSON.stringify(project));
-  alert('Saved!');
+  alert('Saved to browser storage!');
 }
 
 function load() {
@@ -1762,7 +1763,78 @@ function load() {
     project = JSON.parse(saved);
     renderTimeline();
     render();
+  } else {
+    alert('No saved data found in browser storage.');
   }
+}
+
+function exportJSON() {
+  // Create a downloadable JSON file
+  const dataStr = JSON.stringify(project, null, 2);
+  const dataBlob = new Blob([dataStr], {type: 'application/json'});
+  
+  // Create download link
+  const link = document.createElement('a');
+  link.href = URL.createObjectURL(dataBlob);
+  
+  // Generate filename with date
+  const date = new Date().toISOString().split('T')[0];
+  link.download = `fluenta-tempus-${project.name.toLowerCase().replace(/\s+/g, '-')}-${date}.json`;
+  
+  // Trigger download
+  document.body.appendChild(link);
+  link.click();
+  document.body.removeChild(link);
+  
+  // Clean up
+  URL.revokeObjectURL(link.href);
+}
+
+function importJSON() {
+  // Create hidden file input
+  const input = document.createElement('input');
+  input.type = 'file';
+  input.accept = '.json';
+  
+  input.onchange = (e) => {
+    const file = e.target.files[0];
+    if (!file) return;
+    
+    const reader = new FileReader();
+    reader.onload = (event) => {
+      try {
+        const imported = JSON.parse(event.target.result);
+        
+        // Basic validation
+        if (!imported.tasks || !imported.resources || !imported.version) {
+          alert('Invalid Fluenta Tempus file format!');
+          return;
+        }
+        
+        // Check version compatibility
+        const currentVersion = project.version.split('.')[0];
+        const importedVersion = imported.version.split('.')[0];
+        if (currentVersion !== importedVersion) {
+          if (!confirm(`File version (${imported.version}) differs from current (${project.version}).\nImport anyway?`)) {
+            return;
+          }
+        }
+        
+        project = imported;
+        renderTimeline();
+        render();
+        
+        alert(`Successfully imported "${project.name}"`);
+      } catch (error) {
+        alert('Error reading file: ' + error.message);
+      }
+    };
+    
+    reader.readAsText(file);
+  };
+  
+  // Trigger file picker
+  input.click();
 }
 
 // Initial render
