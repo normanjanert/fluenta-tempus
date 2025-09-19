@@ -90,12 +90,14 @@ body { font: 13px system-ui; background: #fff; }
 .header h1 { font-size: 18px; }
 .header .subtitle { opacity: 0.7; font-size: 11px; margin-top: 4px; }
 
-/* Controls in left column */
+/* Controls in left column - SAME HEIGHT AS TIMELINE! */
 .controls {
-  padding: 12px;
+  height: 48px; /* MAGNIFICO! Perfect alignment! */
+  padding: 0 8px; /* Only horizontal padding */
   background: #f8f8f8;
   border-bottom: 1px solid #ddd;
   display: flex;
+  align-items: center; /* Center buttons vertically */
   gap: 8px;
 }
 
@@ -541,21 +543,50 @@ body { font: 13px system-ui; background: #fff; }
   box-shadow: 0 0 4px rgba(255, 68, 68, 0.5);
 }
 
-/* Controls */
+/* Controls - MINIMAL ICON BUTTONS! */
+.controls button {
+  padding: 6px;
+  background: transparent; /* MAGNIFICO! Icons speak for themselves! */
+  color: #333;
+  border: 0;
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 14px; /* Slightly smaller icons */
+  width: 32px; /* Compact! */
+  height: 32px; /* Perfect fit in 48px container */
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.2s;
+}
+
+.controls button:hover {
+  background: #f0f0f0;
+  transform: translateY(-1px);
+  box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+}
+
+/* Modal buttons still need background */
 button {
-  padding: 8px 16px;
+  padding: 8px;
   background: #000;
   color: #fff;
   border: 0;
   border-radius: 4px;
   cursor: pointer;
-  font-size: 12px;
-  min-width: 90px; /* 3 Buttons × 90px + 2 gaps = PERFEKT in 320px! */
-  text-align: center;
+  font-size: 16px;
+  width: 40px;
+  height: 40px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.2s;
 }
 
 button:hover {
   background: #333;
+  transform: translateY(-1px);
+  box-shadow: 0 2px 4px rgba(0,0,0,0.2);
 }
 
 /* Make scrollbars thin */
@@ -765,9 +796,10 @@ button:hover {
   </div>
   
   <div class="controls">
-    <button onclick="addTask()">+ Task</button>
-    <button onclick="exportJSON()">💾 Export</button>
-    <button onclick="importJSON()">📁 Import</button>
+    <button onclick="addTask()" title="Add new task">➕</button>
+    <button onclick="exportJSON()" title="Export project">💾</button>
+    <button onclick="importJSON()" title="Import project">📁</button>
+    <button onclick="editStartDate()" id="startDateBtn" title="Project start: Loading...">📅</button>
   </div>
   
   <div class="timeline-header" id="timeline"></div>
@@ -1957,6 +1989,64 @@ function addTask() {
     });
     renderTimeline();
     render();
+  }
+}
+
+function editStartDate() {
+  const currentDate = project.startDate;
+  const newDate = prompt('Project start date (YYYY-MM-DD):', currentDate);
+  
+  if (newDate && newDate !== currentDate) {
+    // Validate date format
+    const dateRegex = /^\d{4}-\d{2}-\d{2}$/;
+    if (!dateRegex.test(newDate)) {
+      alert('Please use format: YYYY-MM-DD');
+      return;
+    }
+    
+    const testDate = new Date(newDate);
+    if (isNaN(testDate.getTime())) {
+      alert('Invalid date!');
+      return;
+    }
+    
+    // Check if changing date would affect tasks in progress
+    const oldStart = new Date(project.startDate);
+    const newStart = new Date(newDate);
+    const daysDiff = Math.floor((newStart - oldStart) / (1000 * 60 * 60 * 24));
+    
+    if (daysDiff !== 0) {
+      const tasksWithProgress = project.tasks.filter(t => t.progress > 0).length;
+      if (tasksWithProgress > 0) {
+        const msg = daysDiff > 0 
+          ? `Move project ${daysDiff} days into the future?\n${tasksWithProgress} tasks already have progress.`
+          : `Move project ${Math.abs(daysDiff)} days into the past?\n${tasksWithProgress} tasks already have progress.`;
+        
+        if (!confirm(msg)) {
+          return;
+        }
+      }
+    }
+    
+    project.startDate = newDate;
+    updateStartDateTooltip();
+    renderTimeline();
+    render();
+    autoSave();
+  }
+}
+
+// Update the tooltip of the calendar button
+function updateStartDateTooltip() {
+  const btn = document.getElementById('startDateBtn');
+  if (btn) {
+    const date = new Date(project.startDate);
+    const formatted = date.toLocaleDateString('en-GB', { 
+      day: '2-digit', 
+      month: 'short', 
+      year: 'numeric' 
+    });
+    btn.title = `Project start: ${formatted}`;
   }
 }
 
