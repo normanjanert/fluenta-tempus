@@ -1,0 +1,60 @@
+// FLUENTA TEMPUS - Datenstruktur erklärt
+// "So wenig wie möglich, so viel wie nötig"
+{
+  "version": "1.0.0",                    // Versionierung für Migrations
+  "name": "Projekt Name",                // Was wird geplant?
+  
+  "resources": [                         // Menschen, die arbeiten
+    {
+      "firstName": "Vorname",            
+      "lastName": "Nachname",           
+      "shortCode": "VN",                 // 2-4 Buchstaben, eindeutig
+      "weeklyHours": 40,                 // Verfügbare Stunden pro Woche
+      "color": "#0066cc",                // Farbe im Gantt (optional)
+      "absences": [                      // Abwesenheiten (optional)
+        {
+          "from": "2025-02-10",          // YYYY-MM-DD
+          "to": "2025-02-14"             // YYYY-MM-DD
+        }
+      ]
+    }
+  ],
+  
+  "tasks": [                             // Aufgaben in PRIORITÄTS-REIHENFOLGE
+    {
+      "id": 1,                           // Position = Priorität! 
+      "title": "Task Name",              // Was ist zu tun?
+      "owner": "VN",                     // Verantwortlicher (shortCode)
+      "link": "https://...",             // Externe Referenz (optional)
+      
+      "subTasks": [                      // Konkrete Arbeitsschritte
+        {
+          "id": 1,                       // Reihenfolge innerhalb des Tasks
+          "title": "Schritt Name",       // Was genau?
+          "effort": 8,                   // Aufwand in Stunden
+          "assignee": "VN",              // Wer macht's? (shortCode)
+          "dependsOn": [1, 2],           // Abhängig von SubTask IDs (optional)
+          "progress": 0                  // 0-100% (optional, default: 0)
+        }
+      ]
+    },
+    {
+      "id": 2,                           // ZWEITWICHTIGSTE Aufgabe
+      "title": "Nächster Task",          // (weil Position 2)
+      "owner": "VN",
+      "subTasks": []
+    }
+  ]
+}
+
+// PRINZIPIEN:
+// - Task 1 ist IMMER wichtiger als Task 2
+// - Menschen haben Namen (VN), keine generierten IDs
+// - Nur pflegen was sich ändert (Progress)
+// - Dependencies nur wo wirklich nötig
+// - Farben nur für Menschen, nicht für Tasks
+// - Keine versteckten Prioritäts-Felder
+// - Keine Status außer Progress%
+// - Keine Timestamps, keine Logs
+// 
+// Das ist ALLES. Mehr braucht es nicht.

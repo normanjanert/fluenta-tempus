@@ -14,7 +14,7 @@
 !README.md
 !LICENSE
 !GENESIS.md
-!example.json
+!example.jsonc
 
 # Erlaube das .claude Verzeichnis und seinen Inhalt
 !.claude/
