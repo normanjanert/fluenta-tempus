@@ -624,6 +624,37 @@ button:hover {
   font-size: 12px;
   color: #666;
 }
+
+/* Link badge for parent tasks */
+.link-badge {
+  cursor: pointer;
+  padding: 2px 6px;
+  border-radius: 2px;
+  font-size: 11px;
+  margin-left: 4px;
+  color: #1976D2;
+  text-decoration: none;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.link-badge:hover {
+  background: #e3f2fd;
+  text-decoration: underline;
+}
+
+.link-badge.empty {
+  color: #999;
+  border: 1px solid #ddd;
+  background: #fafafa;
+}
+
+.link-badge.empty:hover {
+  background: #fff;
+  border-color: #1976D2;
+  color: #1976D2;
+}
 </style>
 </head>
 <body>
@@ -684,17 +715,17 @@ let project = {
     "Team": { name: "Team", color: "#FF9800", weeklyHours: 80 }
   },
   tasks: [
-    { id: 1, name: "Requirements", owner: "NJ", duration: 5, progress: 100, indent: 0, collapsed: false },
+    { id: 1, name: "Requirements", owner: "NJ", duration: 5, progress: 100, indent: 0, collapsed: false, linkText: "", linkUrl: "" },
     { id: 2, name: "User Stories", owner: "NJ", duration: 2, progress: 100, deps: [], indent: 1 },
     { id: 3, name: "Technical Spec", owner: "NJ", duration: 3, progress: 100, deps: [2], indent: 1 },
-    { id: 4, name: "Design", owner: "NJ", duration: 8, progress: 75, indent: 0, collapsed: false },
+    { id: 4, name: "Design", owner: "NJ", duration: 8, progress: 75, indent: 0, collapsed: false, linkText: "", linkUrl: "" },
     { id: 5, name: "Wireframes", owner: "NJ", duration: 3, progress: 100, deps: [], indent: 1 },
     { id: 6, name: "Mockups", owner: "NJ", duration: 5, progress: 60, deps: [5], indent: 1 },
-    { id: 7, name: "Development", owner: "Team", duration: 15, progress: 30, indent: 0, collapsed: false },
+    { id: 7, name: "Development", owner: "Team", duration: 15, progress: 30, indent: 0, collapsed: false, linkText: "", linkUrl: "" },
     { id: 8, name: "Frontend", owner: "Team", duration: 8, progress: 40, deps: [], indent: 1 },
     { id: 9, name: "Backend", owner: "Team", duration: 7, progress: 20, deps: [8], indent: 1 },
-    { id: 10, name: "Testing", owner: "NJ", duration: 5, progress: 0, indent: 0, collapsed: false },
-    { id: 11, name: "Deployment", owner: "Team", duration: 3, progress: 0, indent: 0, collapsed: false }
+    { id: 10, name: "Testing", owner: "NJ", duration: 5, progress: 0, indent: 0, collapsed: false, linkText: "", linkUrl: "" },
+    { id: 11, name: "Deployment", owner: "Team", duration: 3, progress: 0, indent: 0, collapsed: false, linkText: "", linkUrl: "" }
   ]
 };
 
@@ -1031,9 +1062,22 @@ function render() {
     const buttonIcon = isSubtask ? '←' : '→';
     const buttonTitle = isSubtask ? 'Make main task' : 'Make subtask';
     
-    // Only subtasks have dependencies!
+    // Parent tasks get link badge, subtasks get dependency badge
     const isMainTask = (task.indent || 0) === 0;
-    const depsHTML = isMainTask ? '' : `<span class="deps-badge" data-field="deps" title="Dependencies">${formatDeps(task.deps)}</span>`;
+    let badgeHTML = '';
+    if (isParent) {
+      // Parent tasks can have external links
+      const linkText = task.linkText || '';
+      const linkUrl = task.linkUrl || '';
+      if (linkText && linkUrl) {
+        badgeHTML = `<a href="${linkUrl}" target="_blank" class="link-badge" onclick="event.stopPropagation();">${linkText} 🔗</a>`;
+      } else {
+        badgeHTML = `<span class="link-badge empty" onclick="editLink(${task.id}); event.stopPropagation();">+ Link 🔗</span>`;
+      }
+    } else if (!isMainTask) {
+      // Only subtasks have dependencies
+      badgeHTML = `<span class="deps-badge" data-field="deps" title="Dependencies">${formatDeps(task.deps)}</span>`;
+    }
     
     taskEl.innerHTML = `
       <div class="collapse-toggle ${isParent ? '' : 'empty'} ${task.collapsed ? 'collapsed' : ''}">
@@ -1048,7 +1092,7 @@ function render() {
           <span class="owner" data-field="owner">${task.owner}</span>
           <span class="duration" data-field="duration">${task.duration}d</span>
           <span class="progress-badge" data-field="progress">${task.progress}%</span>
-          ${depsHTML}
+          ${badgeHTML}
         </div>
         <div class="indent-controls">
           <button class="indent-btn" title="${buttonTitle}">${buttonIcon}</button>
@@ -1129,6 +1173,12 @@ function render() {
       
       // Owner can still be changed for parent tasks
       taskEl.querySelector('.owner').onclick = () => editOwner(task.id);
+      
+      // Parent tasks have link management
+      const linkBadge = taskEl.querySelector('.link-badge');
+      if (linkBadge && linkBadge.classList.contains('empty')) {
+        // Already has onclick handler inline
+      }
     }
     
     // Only add dependency functionality for subtasks
@@ -1441,7 +1491,9 @@ function addTask() {
       progress: 0,
       deps: [],
       indent: 0, // New tasks are main tasks
-      collapsed: false
+      collapsed: false,
+      linkText: '',
+      linkUrl: ''
     });
     renderTimeline();
     render();
@@ -1663,6 +1715,40 @@ function saveDependencies() {
     }
   }
   closeDepsModal();
+}
+
+function editLink(id) {
+  const task = project.tasks.find(t => t.id === id);
+  if (task) {
+    const currentText = task.linkText || '';
+    const currentUrl = task.linkUrl || '';
+    
+    const linkText = prompt(
+      `Enter link text (e.g., JIRA ticket number):\nExample: FFCL-0815`,
+      currentText
+    );
+    
+    if (linkText !== null) {
+      if (linkText.trim() === '') {
+        // Clear the link
+        task.linkText = '';
+        task.linkUrl = '';
+        render();
+        return;
+      }
+      
+      const linkUrl = prompt(
+        `Enter URL for "${linkText}":\nExample: https://jira.company.com/browse/FFCL-0815`,
+        currentUrl || 'https://'
+      );
+      
+      if (linkUrl !== null && linkUrl.trim() !== '') {
+        task.linkText = linkText.trim();
+        task.linkUrl = linkUrl.trim();
+        render();
+      }
+    }
+  }
 }
 
 function save() {
