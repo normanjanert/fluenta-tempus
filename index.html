@@ -131,7 +131,6 @@ body { font: 13px system-ui; background: #fff; }
 }
 
 .resource-badge {
-  background: #000;
   color: #fff;
   padding: 4px 8px;
   border-radius: 3px;
@@ -141,12 +140,14 @@ body { font: 13px system-ui; background: #fff; }
   position: relative;
   transition: all 0.2s;
   white-space: nowrap;
+  border: 1px solid transparent;
 }
 
 .resource-badge:hover {
-  background: #333;
   transform: translateY(-2px);
-  box-shadow: 0 2px 4px rgba(0,0,0,0.2);
+  box-shadow: 0 2px 8px rgba(0,0,0,0.3);
+  filter: brightness(1.1);
+  border: 1px solid rgba(255,255,255,0.3);
 }
 
 .resource-delete-inline {
@@ -419,15 +420,19 @@ body { font: 13px system-ui; background: #fff; }
 }
 
 .owner {
-  background: #000;
   color: #fff;
   padding: 2px 6px;
   border-radius: 2px;
   cursor: pointer;
+  font-weight: 600;
+  font-size: 11px;
+  transition: all 0.2s;
 }
 
 .owner:hover {
-  background: #333;
+  filter: brightness(1.2);
+  transform: scale(1.05);
+  box-shadow: 0 1px 3px rgba(0,0,0,0.2);
 }
 
 .duration {
@@ -1208,6 +1213,7 @@ function renderResources() {
   sortedResources.forEach(([code, resource]) => {
     const badge = document.createElement('div');
     badge.className = 'resource-badge';
+    badge.style.background = resource.color; // GENIAL! Use the resource color!
     badge.innerHTML = `
       ${code}
       <div class="resource-delete-inline" onclick="deleteResource('${code}'); event.stopPropagation();">×</div>
@@ -1591,7 +1597,13 @@ function render() {
     
     // Make other fields clickable for editing - BUT NOT FOR PARENT TASKS!
     if (!isParent) {
-      taskEl.querySelector('.owner').onclick = () => editOwner(task.id);
+      const ownerEl = taskEl.querySelector('.owner');
+      const resource = project.resources[task.owner];
+      if (resource && resource.color) {
+        ownerEl.style.background = resource.color;
+      }
+      ownerEl.onclick = () => editOwner(task.id);
+      
       taskEl.querySelector('.duration').onclick = () => editDuration(task.id);
       taskEl.querySelector('.progress-badge').onclick = () => editProgress(task.id);
     } else {
@@ -1605,7 +1617,12 @@ function render() {
       taskEl.querySelector('.progress-badge').title = 'Weighted average of subtask progress';
       
       // Owner can still be changed for parent tasks
-      taskEl.querySelector('.owner').onclick = () => editOwner(task.id);
+      const ownerEl = taskEl.querySelector('.owner');
+      const resource = project.resources[task.owner];
+      if (resource && resource.color) {
+        ownerEl.style.background = resource.color;
+      }
+      ownerEl.onclick = () => editOwner(task.id);
       
       // Parent tasks have link management
       const linkBadge = taskEl.querySelector('.link-badge');
