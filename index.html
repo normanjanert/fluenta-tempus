@@ -386,6 +386,12 @@ body { font: 13px system-ui; background: #fff; }
   height: 48px; /* Explicit height matching grid */
 }
 
+/* Parent task rows - visual separator */
+.chart-row.parent {
+  background: linear-gradient(to bottom, #f8f8f8 0%, #fff 100%);
+  border-bottom: 2px solid #e0e0e0;
+}
+
 .bar {
   position: absolute;
   top: 10px;
@@ -735,6 +741,16 @@ function calculateSchedule() {
   }
   
   project.tasks.forEach(task => {
+    // SKIP PARENT TASKS - they are just containers!
+    const taskIndex = project.tasks.indexOf(task);
+    const nextTask = project.tasks[taskIndex + 1];
+    const isParent = nextTask && nextTask.indent > (task.indent || 0);
+    
+    if (isParent) {
+      // Parent tasks don't get scheduled - they're just groupings!
+      return;
+    }
+    
     let taskStart = new Date(start);
     
     // STEP 1: Dependency constraints
@@ -1131,45 +1147,51 @@ function render() {
     
     taskList.appendChild(taskEl);
     
-    // Chart row - subtasks slightly transparent
+    // Chart row - ONLY FOR NON-PARENT TASKS!
     const chartRow = document.createElement('div');
     chartRow.className = 'chart-row';
+    if (isParent) {
+      chartRow.classList.add('parent');
+    }
     
-    const s = schedule[task.id];
-    if (s) {
-      // Calculate the calendar position (including weekends)
-      const startDaysDiff = Math.floor((s.start - startDate) / (1000 * 60 * 60 * 24));
-      const endDaysDiff = Math.floor((s.end - startDate) / (1000 * 60 * 60 * 24));
-      
-      // Bar spans from start to end, including weekends
-      const left = Math.max(0, startDaysDiff * PIXELS_PER_DAY);
-      const width = (endDaysDiff - startDaysDiff + 1) * PIXELS_PER_DAY;
-      
-      const bar = document.createElement('div');
-      bar.className = `bar ${task.owner.toLowerCase()}`;
-      bar.style.left = `${left}px`;
-      bar.style.width = `${width}px`;
-      
-      // Subtasks get slightly different styling
-      if (task.indent > 0) {
-        bar.style.height = '24px';
-        bar.style.top = '12px';
-        bar.style.opacity = '0.9';
+    // Parent tasks don't get bars - they're just containers!
+    if (!isParent) {
+      const s = schedule[task.id];
+      if (s) {
+        // Calculate the calendar position (including weekends)
+        const startDaysDiff = Math.floor((s.start - startDate) / (1000 * 60 * 60 * 24));
+        const endDaysDiff = Math.floor((s.end - startDate) / (1000 * 60 * 60 * 24));
+        
+        // Bar spans from start to end, including weekends
+        const left = Math.max(0, startDaysDiff * PIXELS_PER_DAY);
+        const width = (endDaysDiff - startDaysDiff + 1) * PIXELS_PER_DAY;
+        
+        const bar = document.createElement('div');
+        bar.className = `bar ${task.owner.toLowerCase()}`;
+        bar.style.left = `${left}px`;
+        bar.style.width = `${width}px`;
+        
+        // Subtasks get slightly different styling
+        if (task.indent > 0) {
+          bar.style.height = '24px';
+          bar.style.top = '12px';
+          bar.style.opacity = '0.9';
+        }
+        
+        // Blocked tasks get visual indicator
+        if (isBlocked(task.id)) {
+          bar.style.background = 'linear-gradient(135deg, #9E9E9E, #757575)';
+          bar.style.opacity = '0.7';
+        }
+        
+        bar.innerHTML = `
+          ${task.name}
+          <div class="progress" style="width: ${task.progress}%"></div>
+        `;
+        bar.onclick = () => editProgress(task.id);
+        
+        chartRow.appendChild(bar);
       }
-      
-      // Blocked tasks get visual indicator
-      if (isBlocked(task.id)) {
-        bar.style.background = 'linear-gradient(135deg, #9E9E9E, #757575)';
-        bar.style.opacity = '0.7';
-      }
-      
-      bar.innerHTML = `
-        ${task.name}
-        <div class="progress" style="width: ${task.progress}%"></div>
-      `;
-      bar.onclick = () => editProgress(task.id);
-      
-      chartRow.appendChild(bar);
     }
     
     chartScroll.appendChild(chartRow);
