@@ -13,6 +13,8 @@ body { font: 13px system-ui; background: #fff; }
   overflow-x: auto;
   overflow-y: auto;
   position: relative;
+  height: 100%; /* Force container height */
+  min-width: 0; /* MAGNIFICO! Force Grid item to respect overflow! */
 }
 
 .chart-scroll {
@@ -72,7 +74,7 @@ body { font: 13px system-ui; background: #fff; }
   display: grid;
   grid-template-columns: 320px 1fr;
   grid-template-rows: auto auto 1fr;
-  height: 100vh;
+  height: calc(100vh - 48px); /* Space for team bar */
   overflow: hidden;
 }
 
@@ -95,6 +97,101 @@ body { font: 13px system-ui; background: #fff; }
   border-bottom: 1px solid #ddd;
   display: flex;
   gap: 8px;
+}
+
+/* Team bar - MINIMAL & ELEGANT! */
+.team-bar {
+  position: fixed;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  height: 48px;
+  background: #f8f8f8;
+  border-top: 2px solid #ddd;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 0 16px;
+  z-index: 50;
+}
+
+.team-label {
+  font-weight: 600;
+  font-size: 12px;
+  text-transform: uppercase;
+  color: #666;
+}
+
+.team-members {
+  display: flex;
+  gap: 6px;
+  flex: 1;
+  flex-wrap: wrap;
+  align-items: center;
+}
+
+.resource-badge {
+  background: #000;
+  color: #fff;
+  padding: 4px 8px;
+  border-radius: 3px;
+  font-size: 11px;
+  font-weight: 600;
+  cursor: pointer;
+  position: relative;
+  transition: all 0.2s;
+  white-space: nowrap;
+}
+
+.resource-badge:hover {
+  background: #333;
+  transform: translateY(-2px);
+  box-shadow: 0 2px 4px rgba(0,0,0,0.2);
+}
+
+.resource-delete-inline {
+  position: absolute;
+  top: -8px;
+  right: -8px;
+  width: 18px;
+  height: 18px;
+  background: #ff4444;
+  color: #fff;
+  border-radius: 50%;
+  display: none;
+  align-items: center;
+  justify-content: center;
+  font-size: 10px;
+  cursor: pointer;
+  z-index: 5;
+  border: 1px solid #fff;
+}
+
+.resource-badge:hover .resource-delete-inline {
+  display: flex;
+}
+
+.resource-delete-inline:hover {
+  background: #cc0000;
+  transform: scale(1.1);
+}
+
+.add-resource-btn {
+  padding: 4px 12px;
+  background: #fff;
+  border: 1px dashed #999;
+  border-radius: 3px;
+  cursor: pointer;
+  font-size: 11px;
+  color: #666;
+  transition: all 0.2s;
+}
+
+.add-resource-btn:hover {
+  background: #000;
+  color: #fff;
+  border-color: #000;
+  border-style: solid;
 }
 
 /* Timeline header - MAGNIFICO VERSION! */
@@ -184,8 +281,8 @@ body { font: 13px system-ui; background: #fff; }
   grid-column: 1 / -1;
   display: grid;
   grid-template-columns: 320px 1fr;
-  overflow: hidden;
-  height: calc(100vh - 120px);
+  overflow: hidden; /* Keep for vertical sync, but chart handles its own overflow */
+  height: 100%; /* Take remaining space in grid */
 }
 
 /* Task list - no own scrollbar but scrollable via JS */
@@ -415,13 +512,7 @@ body { font: 13px system-ui; background: #fff; }
   z-index: 5;
 }
 
-.bar.nj {
-  background: linear-gradient(135deg, #2196F3, #1976D2);
-}
-
-.bar.team {
-  background: linear-gradient(135deg, #FF9800, #F57C00);
-}
+/* Bar colors now come from resource.color dynamically! */
 
 .progress {
   position: absolute;
@@ -679,6 +770,56 @@ button:hover {
   <div class="content">
     <div class="task-list" id="taskList"></div>
     <div class="chart" id="chart"></div>
+  </div>
+</div>
+
+<!-- Team Bar - ONE LINE TO RULE THEM ALL! -->
+<div class="team-bar">
+  <span class="team-label">Team:</span>
+  <div class="team-members" id="teamMembers">
+    <!-- Resource badges will be rendered here -->
+  </div>
+  <div class="add-resource-btn" onclick="openResourceModal()">+ Add</div>
+</div>
+
+<!-- Resource Modal - CONSISTENT & ELEGANT! -->
+<div class="modal" id="resourceModal">
+  <div class="modal-content">
+    <div class="modal-header">
+      <h3 id="resourceModalTitle">Add Team Member</h3>
+    </div>
+    
+    <div style="display: grid; gap: 16px; margin: 16px 0;">
+      <div style="display: grid; gap: 4px;">
+        <label style="font-size: 12px; color: #666;">Full Name</label>
+        <input type="text" id="resourceName" style="padding: 8px; border: 1px solid #ddd; border-radius: 4px;" placeholder="e.g. John Doe">
+      </div>
+      
+      <div style="display: grid; gap: 4px;">
+        <label style="font-size: 12px; color: #666;">Short Code</label>
+        <input type="text" id="resourceCode" style="padding: 8px; border: 1px solid #ddd; border-radius: 4px; text-transform: uppercase;" placeholder="e.g. JD" maxlength="5">
+      </div>
+      
+      <div style="display: grid; gap: 4px;">
+        <label style="font-size: 12px; color: #666;">Color</label>
+        <div style="display: flex; gap: 8px; align-items: center;">
+          <input type="color" id="resourceColor" style="width: 60px; height: 36px; border: 1px solid #ddd; border-radius: 4px; cursor: pointer;">
+          <div id="colorPresets" style="display: flex; gap: 4px;">
+            <!-- Color presets will be added here -->
+          </div>
+        </div>
+      </div>
+      
+      <div style="display: grid; gap: 4px;">
+        <label style="font-size: 12px; color: #666;">Weekly Hours</label>
+        <input type="number" id="resourceHours" style="padding: 8px; border: 1px solid #ddd; border-radius: 4px;" value="40" min="1" max="80">
+      </div>
+    </div>
+    
+    <div class="modal-footer">
+      <button class="btn-cancel" onclick="closeResourceModal()">Cancel</button>
+      <button onclick="saveResource()">Save</button>
+    </div>
   </div>
 </div>
 
@@ -1007,6 +1148,153 @@ function autoSave() {
   // No alert - silent save!
 }
 
+// Render team resources in one line - MAGNIFICO!
+function renderResources() {
+  const teamMembers = document.getElementById('teamMembers');
+  teamMembers.innerHTML = '';
+  
+  // Sort resources alphabetically by code
+  const sortedResources = Object.entries(project.resources)
+    .sort(([a], [b]) => a.localeCompare(b));
+  
+  sortedResources.forEach(([code, resource]) => {
+    const badge = document.createElement('div');
+    badge.className = 'resource-badge';
+    badge.innerHTML = `
+      ${code}
+      <div class="resource-delete-inline" onclick="deleteResource('${code}'); event.stopPropagation();">×</div>
+    `;
+    badge.onclick = () => editResource(code);
+    badge.title = resource.name;
+    
+    teamMembers.appendChild(badge);
+  });
+}
+
+// Global for modal state
+let editingResourceCode = null;
+
+function openResourceModal(code = null) {
+  const modal = document.getElementById('resourceModal');
+  const colors = ['#2196F3', '#FF9800', '#4CAF50', '#9C27B0', '#F44336', '#00BCD4', '#FFC107', '#795548'];
+  
+  // Setup color presets
+  const colorPresets = document.getElementById('colorPresets');
+  colorPresets.innerHTML = colors.map(c => 
+    `<div style="width: 24px; height: 24px; background: ${c}; border-radius: 4px; cursor: pointer; border: 2px solid transparent;" onclick="document.getElementById('resourceColor').value = '${c}'"></div>`
+  ).join('');
+  
+  if (code) {
+    // Edit mode
+    editingResourceCode = code;
+    const resource = project.resources[code];
+    document.getElementById('resourceModalTitle').textContent = 'Edit Team Member';
+    document.getElementById('resourceName').value = resource.name;
+    document.getElementById('resourceCode').value = code;
+    document.getElementById('resourceCode').disabled = true; // Can't change code in edit mode
+    document.getElementById('resourceColor').value = resource.color;
+    document.getElementById('resourceHours').value = resource.weeklyHours;
+  } else {
+    // Add mode
+    editingResourceCode = null;
+    document.getElementById('resourceModalTitle').textContent = 'Add Team Member';
+    document.getElementById('resourceName').value = '';
+    document.getElementById('resourceCode').value = '';
+    document.getElementById('resourceCode').disabled = false;
+    document.getElementById('resourceColor').value = colors[Math.floor(Math.random() * colors.length)];
+    document.getElementById('resourceHours').value = '40';
+    
+    // Auto-generate code from name
+    document.getElementById('resourceName').oninput = (e) => {
+      if (!editingResourceCode) {
+        const name = e.target.value;
+        const code = name.split(' ').map(w => w[0]).join('').toUpperCase().substring(0, 5);
+        document.getElementById('resourceCode').value = code;
+      }
+    };
+  }
+  
+  modal.classList.add('active');
+}
+
+function closeResourceModal() {
+  document.getElementById('resourceModal').classList.remove('active');
+  editingResourceCode = null;
+}
+
+function saveResource() {
+  const name = document.getElementById('resourceName').value.trim();
+  const code = document.getElementById('resourceCode').value.trim().toUpperCase();
+  const color = document.getElementById('resourceColor').value;
+  const hours = parseInt(document.getElementById('resourceHours').value) || 40;
+  
+  if (!name || !code) {
+    alert('Name and Code are required!');
+    return;
+  }
+  
+  if (!editingResourceCode && project.resources[code]) {
+    alert('Code already exists!');
+    return;
+  }
+  
+  if (editingResourceCode) {
+    // Update existing
+    project.resources[editingResourceCode].name = name;
+    project.resources[editingResourceCode].color = color;
+    project.resources[editingResourceCode].weeklyHours = hours;
+  } else {
+    // Add new
+    project.resources[code] = {
+      name: name,
+      color: color,
+      weeklyHours: hours
+    };
+  }
+  
+  renderResources();
+  render(); // Update chart colors
+  autoSave();
+  closeResourceModal();
+}
+
+function editResource(code) {
+  openResourceModal(code);
+}
+
+function deleteResource(code) {
+  const resource = project.resources[code];
+  if (!resource) return;
+  
+  // Check if resource is used
+  const tasksUsingResource = project.tasks.filter(t => t.owner === code);
+  
+  let confirmMsg = `Delete ${resource.name} (${code})?`;
+  if (tasksUsingResource.length > 0) {
+    const taskNames = tasksUsingResource.slice(0, 3).map(t => t.name).join(', ');
+    const more = tasksUsingResource.length > 3 ? ` and ${tasksUsingResource.length - 3} more` : '';
+    confirmMsg = `${resource.name} is assigned to: ${taskNames}${more}.\n\nTasks will be reassigned. Delete anyway?`;
+  }
+  
+  if (!confirm(confirmMsg)) {
+    return;
+  }
+  
+  delete project.resources[code];
+  
+  // Reassign tasks to first available resource
+  const firstResource = Object.keys(project.resources)[0];
+  if (firstResource) {
+    tasksUsingResource.forEach(task => {
+      task.owner = firstResource;
+    });
+  }
+  
+  renderResources();
+  render();
+  autoSave();
+}
+
 // Render tasks and chart with PERFECT alignment
 function render() {
   // First calculate parent values
@@ -1231,9 +1519,17 @@ function render() {
         const width = (endDaysDiff - startDaysDiff + 1) * PIXELS_PER_DAY;
         
         const bar = document.createElement('div');
-        bar.className = `bar ${task.owner.toLowerCase()}`;
+        bar.className = 'bar';
         bar.style.left = `${left}px`;
         bar.style.width = `${width}px`;
+        
+        // Get color from resource
+        const resource = project.resources[task.owner];
+        if (resource && resource.color) {
+          bar.style.background = `linear-gradient(135deg, ${resource.color}, ${resource.color}dd)`;
+        } else {
+          bar.style.background = 'linear-gradient(135deg, #9E9E9E, #757575)';
+        }
         
         // Subtasks get slightly different styling
         if (task.indent > 0) {
@@ -1852,6 +2148,7 @@ function importJSON() {
 }
 
 // Initial render
+renderResources();
 renderTimeline();
 render();
 
@@ -1861,6 +2158,7 @@ window.addEventListener('DOMContentLoaded', () => {
   if (saved) {
     try {
       project = JSON.parse(saved);
+      renderResources();
       renderTimeline();
       render();
     } catch(e) {
