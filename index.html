@@ -408,39 +408,31 @@ button:hover {
   background: #555;
 }
 
-/* Drop indicator - shows where the task will land */
-.drop-indicator {
-  position: absolute;
-  left: 0;
-  right: 0;
-  height: 2px;
-  background: #2196F3;
+/* Drop zones for subtasks - visual feedback! */
+.task.drop-forbidden {
+  opacity: 0.3;
   pointer-events: none;
-  z-index: 100;
-  opacity: 0;
-  transition: opacity 0.2s;
 }
 
-.drop-indicator.active {
-  opacity: 1;
-}
-
-.drop-indicator::before {
+.task.drop-forbidden::after {
   content: "";
   position: absolute;
-  left: 8px;
-  top: -3px;
-  width: 8px;
-  height: 8px;
-  background: #2196F3;
-  border-radius: 50%;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: repeating-linear-gradient(
+    45deg,
+    transparent,
+    transparent 10px,
+    rgba(255,0,0,0.05) 10px,
+    rgba(255,0,0,0.05) 20px
+  );
 }
 
-/* Task list needs position relative for drop indicator */
 .task-list {
   background: #f8f8f8;
   border-right: 1px solid #ddd;
-  position: relative;
 }
 </style>
 </head>
@@ -806,12 +798,13 @@ document.addEventListener('dragstart', e => {
     draggedTask = e.target.closest('.task');
     const draggedId = parseInt(draggedTask.dataset.id);
     const draggedTaskData = project.tasks.find(t => t.id === draggedId);
+    const isSubtask = (draggedTaskData.indent || 0) > 0;
     
     // Collect the whole family if dragging a parent task
     draggedTaskFamily = [draggedTaskData];
     
     // If this is a main task (indent 0), collect all its subtasks
-    if ((draggedTaskData.indent || 0) === 0) {
+    if (!isSubtask) {
       const startIndex = project.tasks.indexOf(draggedTaskData);
       for (let i = startIndex + 1; i < project.tasks.length; i++) {
         if ((project.tasks[i].indent || 0) > 0) {
@@ -828,15 +821,52 @@ document.addEventListener('dragstart', e => {
       if (el) el.classList.add('dragging');
     });
     
+    // If it's a subtask, mark forbidden zones
+    if (isSubtask) {
+      const draggedIndex = project.tasks.indexOf(draggedTaskData);
+      let parentIndex = -1;
+      let endIndex = project.tasks.length;
+      
+      // Find parent
+      for (let i = draggedIndex - 1; i >= 0; i--) {
+        if ((project.tasks[i].indent || 0) === 0) {
+          parentIndex = i;
+          break;
+        }
+      }
+      
+      // Find next parent (boundary)
+      for (let i = draggedIndex + 1; i < project.tasks.length; i++) {
+        if ((project.tasks[i].indent || 0) === 0) {
+          endIndex = i;
+          break;
+        }
+      }
+      
+      // Mark forbidden zones visually
+      document.querySelectorAll('.task').forEach((el, index) => {
+        const taskId = parseInt(el.dataset.id);
+        const task = project.tasks.find(t => t.id === taskId);
+        const taskIndex = project.tasks.indexOf(task);
+        
+        if (taskIndex <= parentIndex || taskIndex >= endIndex) {
+          el.classList.add('drop-forbidden');
+        }
+      });
+    }
+    
     e.dataTransfer.effectAllowed = 'move';
   }
 });
 
 document.addEventListener('dragend', e => {
   if (draggedTask) {
-    // Remove dragging class from all family members
+    // Remove all visual indicators
     document.querySelectorAll('.task.dragging').forEach(el => {
       el.classList.remove('dragging');
+    });
+    document.querySelectorAll('.task.drop-forbidden').forEach(el => {
+      el.classList.remove('drop-forbidden');
     });
     
     // Get new order from DOM
@@ -874,77 +904,70 @@ document.addEventListener('dragover', e => {
   const taskList = document.getElementById('taskList');
   const draggedId = parseInt(draggedTask.dataset.id);
   const draggedTaskData = project.tasks.find(t => t.id === draggedId);
-  const isMainTask = (draggedTaskData.indent || 0) === 0;
+  const isSubtask = (draggedTaskData.indent || 0) > 0;
   
-  // Remove any existing drop indicator
-  const existingIndicator = document.querySelector('.drop-indicator');
-  if (existingIndicator) existingIndicator.remove();
+  // Find the boundaries for subtasks
+  let allowedStart = 0;
+  let allowedEnd = project.tasks.length;
+  
+  if (isSubtask) {
+    const draggedIndex = project.tasks.indexOf(draggedTaskData);
+    
+    // Find parent task (previous task with indent 0)
+    for (let i = draggedIndex - 1; i >= 0; i--) {
+      if ((project.tasks[i].indent || 0) === 0) {
+        allowedStart = i;
+        break;
+      }
+    }
+    
+    // Find next parent task (boundary)
+    for (let i = draggedIndex + 1; i < project.tasks.length; i++) {
+      if ((project.tasks[i].indent || 0) === 0) {
+        allowedEnd = i;
+        break;
+      }
+    }
+  }
   
   // Find the element we're hovering over
-  const hoverElement = [...taskList.querySelectorAll('.task:not(.dragging)')].find(child => {
+  const allTasks = [...taskList.querySelectorAll('.task')];
+  const hoverElement = allTasks.find(child => {
+    if (child.classList.contains('dragging')) return false;
     const box = child.getBoundingClientRect();
     return e.clientY < box.top + box.height / 2;
   });
   
-  // Create drop indicator
-  const indicator = document.createElement('div');
-  indicator.className = 'drop-indicator active';
-  
+  // Check if drop is allowed
   if (hoverElement) {
     const hoverId = parseInt(hoverElement.dataset.id);
     const hoverTask = project.tasks.find(t => t.id === hoverId);
+    const hoverIndex = project.tasks.indexOf(hoverTask);
     
-    // RULE: Main tasks can only be inserted before other main tasks or at family boundaries
-    if (isMainTask && (hoverTask.indent || 0) > 0) {
-      // Find the parent of this subtask family
-      let parentElement = hoverElement;
-      while (parentElement.previousElementSibling) {
-        const prevElement = parentElement.previousElementSibling;
-        const prevId = parseInt(prevElement.dataset.id);
-        const prevTask = project.tasks.find(t => t.id === prevId);
-        if ((prevTask.indent || 0) === 0) {
-          parentElement = prevElement;
-          break;
-        }
-        parentElement = prevElement;
+    // Subtasks can only move within their parent's boundaries
+    if (isSubtask) {
+      if (hoverIndex < allowedStart || hoverIndex > allowedEnd) {
+        return; // Don't allow drop here
       }
       
-      // Show indicator before the parent
-      const rect = parentElement.getBoundingClientRect();
-      const listRect = taskList.getBoundingClientRect();
-      indicator.style.top = (rect.top - listRect.top - 1) + 'px';
-      taskList.appendChild(indicator);
-      
-      // Move all family members together BEFORE the parent
-      const fragment = document.createDocumentFragment();
-      draggedTaskFamily.forEach(task => {
-        const el = document.querySelector(`.task[data-id="${task.id}"]`);
-        if (el) fragment.appendChild(el);
-      });
-      taskList.insertBefore(fragment, parentElement);
-    } else {
-      // Show indicator at hover position
-      const rect = hoverElement.getBoundingClientRect();
-      const listRect = taskList.getBoundingClientRect();
-      indicator.style.top = (rect.top - listRect.top - 1) + 'px';
-      taskList.appendChild(indicator);
-      
-      // Normal insertion for subtasks or main task before main task
-      const fragment = document.createDocumentFragment();
-      draggedTaskFamily.forEach(task => {
-        const el = document.querySelector(`.task[data-id="${task.id}"]`);
-        if (el) fragment.appendChild(el);
-      });
-      taskList.insertBefore(fragment, hoverElement);
+      // Also prevent dropping before the parent
+      if (hoverIndex === allowedStart) {
+        return;
+      }
     }
+    
+    // Move the dragged elements
+    const fragment = document.createDocumentFragment();
+    draggedTaskFamily.forEach(task => {
+      const el = document.querySelector(`.task[data-id="${task.id}"]`);
+      if (el) fragment.appendChild(el);
+    });
+    
+    taskList.insertBefore(fragment, hoverElement);
   } else {
-    // Show indicator at the end
-    const lastTask = taskList.lastElementChild;
-    if (lastTask && !lastTask.classList.contains('dragging')) {
-      const rect = lastTask.getBoundingClientRect();
-      const listRect = taskList.getBoundingClientRect();
-      indicator.style.top = (rect.bottom - listRect.top - 1) + 'px';
-      taskList.appendChild(indicator);
+    // Check if we can append at the end
+    if (isSubtask && project.tasks.length > allowedEnd) {
+      return; // Can't append subtask at the very end if there are other parent tasks after
     }
     
     // Append at the end
@@ -957,13 +980,6 @@ document.addEventListener('dragover', e => {
   }
 });
 
-document.addEventListener('dragleave', e => {
-  // Clean up drop indicator when leaving the drop zone
-  if (!e.relatedTarget || !e.relatedTarget.closest('.task-list')) {
-    const indicator = document.querySelector('.drop-indicator');
-    if (indicator) indicator.remove();
-  }
-});
 
 // Simple functions
 function addTask() {
