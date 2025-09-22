@@ -391,6 +391,15 @@ body { font: 13px system-ui; background: #fff; }
   box-shadow: 0 2px 4px rgba(33, 150, 243, 0.3);
 }
 
+/* Delete button matches indent control size, warns on hover */
+.delete-btn { margin-left: 6px; }
+.delete-btn:hover {
+  background: #ff4444;
+  border-color: #ff4444;
+  color: #fff;
+  box-shadow: 0 2px 4px rgba(255, 68, 68, 0.3);
+}
+
 .task-name {
   font-weight: 600;
   white-space: nowrap;
@@ -1563,6 +1572,7 @@ function render() {
         </div>
         <div class="indent-controls">
           <button class="indent-btn" title="${buttonTitle}">${buttonIcon}</button>
+          <button class="indent-btn delete-btn" title="Delete" onclick="deleteTask(${task.id}); event.stopPropagation();">✖</button>
         </div>
       </div>
     `;
@@ -1978,6 +1988,57 @@ function addTask() {
     renderTimeline();
     render();
   }
+}
+
+// Delete a task or a parent with its subtasks (with confirmation)
+function deleteTask(id) {
+  const index = project.tasks.findIndex(t => t.id === id);
+  if (index === -1) return;
+
+  const task = project.tasks[index];
+  const isParent = (task.indent || 0) === 0 && project.tasks[index + 1] && (project.tasks[index + 1].indent || 0) > 0;
+
+  // Collect IDs to delete
+  const idsToDelete = [task.id];
+  if (isParent) {
+    for (let i = index + 1; i < project.tasks.length; i++) {
+      const t = project.tasks[i];
+      if ((t.indent || 0) > 0) {
+        idsToDelete.push(t.id);
+      } else {
+        break;
+      }
+    }
+  }
+
+  // Build confirmation message
+  let confirmMsg = '';
+  if (isParent) {
+    const childCount = idsToDelete.length - 1;
+    confirmMsg = `Delete "${task.name}" and its ${childCount} subtask${childCount === 1 ? '' : 's'}?\n\nThis cannot be undone.`;
+  } else if ((task.indent || 0) > 0) {
+    confirmMsg = `Delete subtask "${task.name}"?`;
+  } else {
+    confirmMsg = `Delete task "${task.name}"?`;
+  }
+
+  if (!confirm(confirmMsg)) return;
+
+  // Remove tasks
+  project.tasks = project.tasks.filter(t => !idsToDelete.includes(t.id));
+
+  // Remove dependencies pointing to deleted IDs
+  project.tasks.forEach(t => {
+    if (t.deps && Array.isArray(t.deps)) {
+      t.deps = t.deps.filter(depId => !idsToDelete.includes(depId));
+    }
+  });
+
+  // Reindex IDs (Position = Priorität)
+  project.tasks.forEach((t, i) => t.id = i + 1);
+
+  renderTimeline();
+  render();
 }
 
 function editStartDate() {
