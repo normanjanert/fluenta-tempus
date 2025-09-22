@@ -1,0 +1,437 @@
+{
+  "version": "1.2.0",
+  "name": "Website Relaunch",
+  "startDate": "2025-09-22",
+  "resources": {
+    "NJ": {
+      "name": "Norman Janert",
+      "color": "#2196f3",
+      "weeklyHours": 20,
+      "absences": []
+    },
+    "Team": {
+      "name": "Team",
+      "color": "#FF9800",
+      "weeklyHours": 80
+    },
+    "CAN": {
+      "name": "CAN",
+      "color": "#cddc39",
+      "weeklyHours": 40,
+      "absences": []
+    },
+    "RFR": {
+      "name": "RFR",
+      "color": "#00bcd4",
+      "weeklyHours": 40,
+      "absences": []
+    },
+    "ALB": {
+      "name": "ALB",
+      "color": "#ff5722",
+      "weeklyHours": 40,
+      "absences": []
+    },
+    "MZA": {
+      "name": "MZA",
+      "color": "#8bc34a",
+      "weeklyHours": 40,
+      "absences": []
+    },
+    "WBE": {
+      "name": "WBE",
+      "color": "#03a9f4",
+      "weeklyHours": 20,
+      "absences": []
+    },
+    "ARB": {
+      "name": "ARB",
+      "color": "#ff9800",
+      "weeklyHours": 20,
+      "absences": []
+    }
+  },
+  "tasks": [
+    {
+      "id": 1,
+      "name": "Geteilte Szenarien",
+      "owner": "WBE",
+      "duration": 4,
+      "progress": 0,
+      "deps": [],
+      "indent": 0,
+      "collapsed": false,
+      "linkText": "",
+      "linkUrl": ""
+    },
+    {
+      "id": 2,
+      "name": "Datenmodell",
+      "owner": "WBE",
+      "duration": 1,
+      "progress": 0,
+      "deps": [],
+      "indent": 1
+    },
+    {
+      "id": 3,
+      "name": "Import und Export",
+      "owner": "MZA",
+      "duration": 2,
+      "progress": 0,
+      "deps": [
+        2
+      ],
+      "indent": 1
+    },
+    {
+      "id": 4,
+      "name": "Planungsvorbereitung",
+      "owner": "ARB",
+      "duration": 1,
+      "progress": 0,
+      "deps": [
+        2
+      ],
+      "indent": 1
+    },
+    {
+      "id": 5,
+      "name": "Zielwertoptimierung",
+      "owner": "WBE",
+      "duration": 28,
+      "progress": 7,
+      "deps": [],
+      "indent": 0,
+      "collapsed": false,
+      "linkText": "FFCL-2873",
+      "linkUrl": "https://support.fact.de/jira/browse/FFCL-2873"
+    },
+    {
+      "id": 6,
+      "name": "Datenmodell",
+      "owner": "WBE",
+      "duration": 1,
+      "progress": 100,
+      "deps": [],
+      "indent": 1,
+      "collapsed": false,
+      "linkText": "",
+      "linkUrl": ""
+    },
+    {
+      "id": 7,
+      "name": "Import und Export",
+      "owner": "MZA",
+      "duration": 1,
+      "progress": 100,
+      "deps": [
+        6
+      ],
+      "indent": 1,
+      "collapsed": false,
+      "linkText": "",
+      "linkUrl": ""
+    },
+    {
+      "id": 8,
+      "name": "Task - Zielwertoptimierung",
+      "owner": "WBE",
+      "duration": 10,
+      "progress": 0,
+      "deps": [
+        7
+      ],
+      "indent": 1,
+      "collapsed": false,
+      "linkText": "",
+      "linkUrl": ""
+    },
+    {
+      "id": 9,
+      "name": "UI - Zielwertoptimierung",
+      "owner": "CAN",
+      "duration": 15,
+      "progress": 0,
+      "deps": [
+        6
+      ],
+      "indent": 1,
+      "collapsed": false,
+      "linkText": "",
+      "linkUrl": ""
+    },
+    {
+      "id": 10,
+      "name": "UI - Ausführung-Zielwertoptimierung",
+      "owner": "CAN",
+      "duration": 1,
+      "progress": 0,
+      "deps": [
+        6
+      ],
+      "indent": 1,
+      "collapsed": false,
+      "linkText": "",
+      "linkUrl": ""
+    },
+    {
+      "id": 11,
+      "name": "Einzeltitelplanung",
+      "owner": "NJ",
+      "duration": 15,
+      "progress": 7,
+      "deps": [],
+      "indent": 0,
+      "collapsed": false,
+      "linkText": "FFCL-2893",
+      "linkUrl": "https://support.fact.de/jira/browse/FFCL-2893"
+    },
+    {
+      "id": 12,
+      "name": "Datenmodell",
+      "owner": "NJ",
+      "duration": 1,
+      "progress": 100,
+      "deps": [],
+      "indent": 1,
+      "collapsed": false,
+      "linkText": "",
+      "linkUrl": ""
+    },
+    {
+      "id": 13,
+      "name": "UI - Einzeltitelvorgaben",
+      "owner": "RFR",
+      "duration": 5,
+      "progress": 0,
+      "deps": [
+        12
+      ],
+      "indent": 1,
+      "collapsed": false,
+      "linkText": "",
+      "linkUrl": ""
+    },
+    {
+      "id": 14,
+      "name": "Import und Export",
+      "owner": "NJ",
+      "duration": 3,
+      "progress": 0,
+      "deps": [
+        12
+      ],
+      "indent": 1,
+      "collapsed": false,
+      "linkText": "",
+      "linkUrl": ""
+    },
+    {
+      "id": 15,
+      "name": "Bewertung",
+      "owner": "NJ",
+      "duration": 3,
+      "progress": 0,
+      "deps": [
+        14
+      ],
+      "indent": 1,
+      "collapsed": false,
+      "linkText": "",
+      "linkUrl": ""
+    },
+    {
+      "id": 16,
+      "name": "Excel-Import und -Export",
+      "owner": "ALB",
+      "duration": 3,
+      "progress": 0,
+      "deps": [
+        13
+      ],
+      "indent": 1,
+      "collapsed": false,
+      "linkText": "",
+      "linkUrl": ""
+    },
+    {
+      "id": 17,
+      "name": "Investitionsplanungs-Gruppen",
+      "owner": "NJ",
+      "duration": 45,
+      "progress": 0,
+      "deps": [],
+      "indent": 0,
+      "collapsed": false,
+      "linkText": "FFCL-2879",
+      "linkUrl": "https://support.fact.de/jira/browse/FFCL-2879"
+    },
+    {
+      "id": 18,
+      "name": "Datenmodell",
+      "owner": "NJ",
+      "duration": 1,
+      "progress": 0,
+      "deps": [],
+      "indent": 1,
+      "collapsed": false,
+      "linkText": "",
+      "linkUrl": ""
+    },
+    {
+      "id": 19,
+      "name": "UI - Übersicht",
+      "owner": "CAN",
+      "duration": 2,
+      "progress": 0,
+      "deps": [
+        18
+      ],
+      "indent": 1,
+      "collapsed": false,
+      "linkText": "",
+      "linkUrl": ""
+    },
+    {
+      "id": 20,
+      "name": "UI - Segmentierung",
+      "owner": "RFR",
+      "duration": 5,
+      "progress": 0,
+      "deps": [
+        18
+      ],
+      "indent": 1,
+      "collapsed": false,
+      "linkText": "",
+      "linkUrl": ""
+    },
+    {
+      "id": 21,
+      "name": "UI - Marktdatenprognosen",
+      "owner": "CAN",
+      "duration": 5,
+      "progress": 0,
+      "deps": [
+        18
+      ],
+      "indent": 1,
+      "collapsed": false,
+      "linkText": "",
+      "linkUrl": ""
+    },
+    {
+      "id": 22,
+      "name": "UI - Einzeltitelplanung",
+      "owner": "CAN",
+      "duration": 3,
+      "progress": 0,
+      "deps": [
+        18
+      ],
+      "indent": 1,
+      "collapsed": false,
+      "linkText": "",
+      "linkUrl": ""
+    },
+    {
+      "id": 23,
+      "name": "Import und Export",
+      "owner": "ALB",
+      "duration": 5,
+      "progress": 0,
+      "deps": [
+        18
+      ],
+      "indent": 1,
+      "collapsed": false,
+      "linkText": "",
+      "linkUrl": ""
+    },
+    {
+      "id": 24,
+      "name": "Calc - Bewertungsregel",
+      "owner": "NJ",
+      "duration": 5,
+      "progress": 0,
+      "deps": [
+        23
+      ],
+      "indent": 1,
+      "collapsed": false,
+      "linkText": "",
+      "linkUrl": ""
+    },
+    {
+      "id": 25,
+      "name": "Marktdaten-Mapping",
+      "owner": "MZA",
+      "duration": 7,
+      "progress": 0,
+      "deps": [
+        23
+      ],
+      "indent": 1,
+      "collapsed": false,
+      "linkText": "",
+      "linkUrl": ""
+    },
+    {
+      "id": 26,
+      "name": "Einzeltitelvorgaben",
+      "owner": "NJ",
+      "duration": 3,
+      "progress": 0,
+      "deps": [
+        23
+      ],
+      "indent": 1,
+      "collapsed": false,
+      "linkText": "",
+      "linkUrl": ""
+    },
+    {
+      "id": 27,
+      "name": "Bestands-Segment-Zuordnung",
+      "owner": "MZA",
+      "duration": 3,
+      "progress": 0,
+      "deps": [
+        23
+      ],
+      "indent": 1,
+      "collapsed": false,
+      "linkText": "",
+      "linkUrl": ""
+    },
+    {
+      "id": 28,
+      "name": "Liquiditätspool",
+      "owner": "MZA",
+      "duration": 3,
+      "progress": 0,
+      "deps": [
+        23
+      ],
+      "indent": 1,
+      "collapsed": false,
+      "linkText": "",
+      "linkUrl": ""
+    },
+    {
+      "id": 29,
+      "name": "Weiterrollen",
+      "owner": "ALB",
+      "duration": 3,
+      "progress": 0,
+      "deps": [
+        23
+      ],
+      "indent": 1,
+      "collapsed": false,
+      "linkText": "",
+      "linkUrl": ""
+    }
+  ]
+}

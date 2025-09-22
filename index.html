@@ -54,11 +54,7 @@ body { font: 13px system-ui; background: #fff; }
   background: #ddd;
 }
 
-/* Hide subtasks when parent is collapsed */
-.task.collapsed + .task.indent-1,
-.task.collapsed ~ .task.indent-1 {
-  display: none;
-}
+/* JS handles hiding subtasks when parent is collapsed to avoid over-hiding */
 
 .task:hover {
   background: #f8f9fa;
@@ -1535,10 +1531,10 @@ function render() {
   // Create matching rows for each task
   project.tasks.forEach((task, index) => {
     // Skip subtasks if parent is collapsed
-    if (task.indent > 0) {
+    if ((task.indent || 0) > 0) {
       // Find parent task
       for (let i = index - 1; i >= 0; i--) {
-        if (project.tasks[i].indent === 0) {
+        if ((project.tasks[i].indent || 0) === 0) {
           if (project.tasks[i].collapsed) {
             return; // Skip this subtask
           }
@@ -1712,7 +1708,7 @@ function render() {
       chartRow.classList.add('parent');
     }
     
-    // Parent tasks don't get bars - they're just containers!
+    // Parent tasks don't get bars unless collapsed (show aggregate span)
     if (!isParent) {
       const s = schedule[task.id];
       if (s) {
@@ -1738,11 +1734,11 @@ function render() {
         }
         
         // Subtasks get slightly different styling
-        if (task.indent > 0) {
-          bar.style.height = '24px';
-          bar.style.top = '12px';
-          bar.style.opacity = '0.9';
-        }
+    if ((task.indent || 0) > 0) {
+      bar.style.height = '24px';
+      bar.style.top = '12px';
+      bar.style.opacity = '0.9';
+    }
         
         // Blocked tasks get visual indicator
         if (isBlocked(task.id)) {
@@ -1756,6 +1752,36 @@ function render() {
         `;
         bar.onclick = () => editProgress(task.id);
         
+        chartRow.appendChild(bar);
+      }
+    } else if (task.collapsed) {
+      // Aggregate earliest start and latest end from children's schedules
+      let earliest = null;
+      let latest = null;
+      for (let j = index + 1; j < project.tasks.length; j++) {
+        const child = project.tasks[j];
+        if ((child.indent || 0) <= (task.indent || 0)) break; // stop at next parent
+        const s = schedule[child.id];
+        if (s) {
+          if (!earliest || s.start < earliest) earliest = new Date(s.start);
+          if (!latest || s.end > latest) latest = new Date(s.end);
+        }
+      }
+      if (earliest && latest) {
+        const startDaysDiff = Math.floor((earliest - startDate) / (1000 * 60 * 60 * 24));
+        const endDaysDiff = Math.floor((latest - startDate) / (1000 * 60 * 60 * 24));
+        const left = Math.max(0, startDaysDiff * PIXELS_PER_DAY);
+        const width = (endDaysDiff - startDaysDiff + 1) * PIXELS_PER_DAY;
+        const bar = document.createElement('div');
+        bar.className = 'bar';
+        bar.style.left = `${left}px`;
+        bar.style.width = `${width}px`;
+        // Neutral parent color
+        bar.style.background = 'linear-gradient(135deg, #9E9E9E, #757575)';
+        bar.innerHTML = `
+          ${task.name}
+          <div class="progress" style="width: ${task.progress}%"></div>
+        `;
         chartRow.appendChild(bar);
       }
     }
