@@ -65,6 +65,18 @@ body { font: 13px system-ui; background: #fff; }
   background: #e3f2fd;
 }
 
+.task.overdue .task-name,
+.task.resource-conflict .task-name {
+  color: #d32f2f;
+  font-weight: 600;
+}
+
+.task.overdue .progress-badge,
+.task.resource-conflict .progress-badge {
+  color: #d32f2f;
+  font-weight: 600;
+}
+
 /* Main Grid Layout */
 .app {
   display: grid;
@@ -527,6 +539,12 @@ body { font: 13px system-ui; background: #fff; }
   text-overflow: ellipsis;
 }
 
+.bar.overdue,
+.bar.resource-conflict {
+  background: linear-gradient(135deg, #f44336, #d32f2f);
+  box-shadow: 0 2px 6px rgba(244, 67, 54, 0.4);
+}
+
 .bar:hover {
   transform: translateY(-1px);
   box-shadow: 0 4px 8px rgba(0,0,0,0.15);
@@ -543,6 +561,11 @@ body { font: 13px system-ui; background: #fff; }
   background: #4CAF50; /* GRÜN! Das universelle Symbol für FERTIG! */
   border-radius: 0 0 4px 4px;
   transition: width 0.3s ease; /* Smooth animation when progress changes */
+}
+
+.bar.overdue .progress,
+.bar.resource-conflict .progress {
+  background: rgba(255,255,255,0.7);
 }
 
 /* Today marker - because we care about NOW */
@@ -689,6 +712,11 @@ button:hover {
   color: #666;
   font-size: 14px;
   margin-top: 4px;
+}
+
+.field-hint {
+  font-size: 11px;
+  color: #999;
 }
 
 .deps-selector {
@@ -908,6 +936,38 @@ button:hover {
   </div>
 </div>
 
+<!-- Task Modal - Fortschritt & Startdatum! -->
+<div class="modal" id="taskModal">
+  <div class="modal-content">
+    <div class="modal-header">
+      <h3>Edit Task</h3>
+      <div class="task-title" id="taskModalTaskName"></div>
+    </div>
+
+    <div style="display: grid; gap: 16px; margin: 16px 0;">
+      <div style="display: grid; gap: 4px;">
+        <label style="font-size: 12px; color: #666;">Progress (%)</label>
+        <input type="number" id="taskModalProgress" style="padding: 8px; border: 1px solid #ddd; border-radius: 4px;" min="0" max="100">
+      </div>
+
+      <div id="taskModalStartRow" style="display: grid; gap: 4px;">
+        <label style="font-size: 12px; color: #666;">Start Date</label>
+        <input type="date" id="taskModalStartDate" style="padding: 8px; border: 1px solid #ddd; border-radius: 4px;">
+        <div style="display: flex; align-items: center; gap: 8px; margin-top: 4px;">
+          <input type="checkbox" id="taskModalFixedStart" style="width: 16px; height: 16px;">
+          <label for="taskModalFixedStart" style="font-size: 12px; color: #666;">Festes Startdatum (wird nicht automatisch verschoben)</label>
+        </div>
+        <div class="field-hint" id="taskModalStartHint">Leer lassen, um wieder automatisch zu planen.</div>
+      </div>
+    </div>
+
+    <div class="modal-footer">
+      <button class="btn-cancel" onclick="closeTaskModal()">Cancel</button>
+      <button onclick="saveTaskDetails()">Save</button>
+    </div>
+  </div>
+</div>
+
 <script>
 // Minimal data structure following Fluenta Tempus philosophy
 let project = {
@@ -919,23 +979,27 @@ let project = {
     "Team": { name: "Team", color: "#FF9800", weeklyHours: 80 }
   },
   tasks: [
-    { id: 1, name: "Requirements", owner: "NJ", duration: 5, progress: 100, indent: 0, collapsed: false, linkText: "", linkUrl: "" },
-    { id: 2, name: "User Stories", owner: "NJ", duration: 2, progress: 100, deps: [], indent: 1 },
-    { id: 3, name: "Technical Spec", owner: "NJ", duration: 3, progress: 100, deps: [2], indent: 1 },
-    { id: 4, name: "Design", owner: "NJ", duration: 8, progress: 75, indent: 0, collapsed: false, linkText: "", linkUrl: "" },
-    { id: 5, name: "Wireframes", owner: "NJ", duration: 3, progress: 100, deps: [], indent: 1 },
-    { id: 6, name: "Mockups", owner: "NJ", duration: 5, progress: 60, deps: [5], indent: 1 },
-    { id: 7, name: "Development", owner: "Team", duration: 15, progress: 30, indent: 0, collapsed: false, linkText: "", linkUrl: "" },
-    { id: 8, name: "Frontend", owner: "Team", duration: 8, progress: 40, deps: [], indent: 1 },
-    { id: 9, name: "Backend", owner: "Team", duration: 7, progress: 20, deps: [8], indent: 1 },
-    { id: 10, name: "Testing", owner: "NJ", duration: 5, progress: 0, indent: 0, collapsed: false, linkText: "", linkUrl: "" },
-    { id: 11, name: "Deployment", owner: "Team", duration: 3, progress: 0, indent: 0, collapsed: false, linkText: "", linkUrl: "" }
+    { id: 1, name: "Requirements", owner: "NJ", duration: 5, progress: 100, indent: 0, collapsed: false, linkText: "", linkUrl: "", hasFixedStartDate: false },
+    { id: 2, name: "User Stories", owner: "NJ", duration: 2, progress: 100, deps: [], indent: 1, hasFixedStartDate: false },
+    { id: 3, name: "Technical Spec", owner: "NJ", duration: 3, progress: 100, deps: [2], indent: 1, hasFixedStartDate: false },
+    { id: 4, name: "Design", owner: "NJ", duration: 8, progress: 75, indent: 0, collapsed: false, linkText: "", linkUrl: "", hasFixedStartDate: false },
+    { id: 5, name: "Wireframes", owner: "NJ", duration: 3, progress: 100, deps: [], indent: 1, hasFixedStartDate: false },
+    { id: 6, name: "Mockups", owner: "NJ", duration: 5, progress: 60, deps: [5], indent: 1, hasFixedStartDate: false },
+    { id: 7, name: "Development", owner: "Team", duration: 15, progress: 30, indent: 0, collapsed: false, linkText: "", linkUrl: "", hasFixedStartDate: false },
+    { id: 8, name: "Frontend", owner: "Team", duration: 8, progress: 40, deps: [], indent: 1, hasFixedStartDate: false },
+    { id: 9, name: "Backend", owner: "Team", duration: 7, progress: 20, deps: [8], indent: 1, hasFixedStartDate: false },
+    { id: 10, name: "Testing", owner: "NJ", duration: 5, progress: 0, indent: 0, collapsed: false, linkText: "", linkUrl: "", hasFixedStartDate: false },
+    { id: 11, name: "Deployment", owner: "Team", duration: 3, progress: 0, indent: 0, collapsed: false, linkText: "", linkUrl: "", hasFixedStartDate: false }
   ]
 };
+
+normalizeTaskStartDates(project.tasks);
 
 let draggedTask = null;
 const PIXELS_PER_DAY = 20; // MAGNIFICO! Each day is visible!
 const COMPLETED_BAR_COLOR = '#4CAF50'; // 100% erledigt? Immer grün!
+let taskModalTaskId = null;
+let taskModalCanSetStart = false;
 
 function parseIsoDateLocal(value) {
   if (typeof value === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(value)) {
@@ -956,6 +1020,91 @@ function getTodayStart() {
   return d;
 }
 
+function formatDateForInput(date) {
+  if (!(date instanceof Date) || isNaN(date.getTime())) return '';
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, '0');
+  const day = String(date.getDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
+}
+
+function isResourceWorkingDay(resourceCode, date) {
+  const d = new Date(date);
+  if (isNaN(d.getTime())) return false;
+  d.setHours(0, 0, 0, 0);
+  if (d.getDay() === 0 || d.getDay() === 6) return false;
+
+  const resource = project.resources[resourceCode];
+  if (!resource || !resource.absences) return true;
+
+  return !resource.absences.some(absence => {
+    const absStart = parseIsoDateLocal(absence.start);
+    const absEnd = parseIsoDateLocal(absence.end);
+    if (isNaN(absStart.getTime()) || isNaN(absEnd.getTime())) return false;
+    absStart.setHours(0, 0, 0, 0);
+    absEnd.setHours(23, 59, 59, 999);
+    return d >= absStart && d <= absEnd;
+  });
+}
+
+function countWorkingDays(resourceCode, startDate, endDate) {
+  const start = new Date(startDate);
+  const end = new Date(endDate);
+  if (isNaN(start.getTime()) || isNaN(end.getTime()) || end < start) return 0;
+
+  const cursor = new Date(start);
+  cursor.setHours(0, 0, 0, 0);
+  end.setHours(0, 0, 0, 0);
+
+  let days = 0;
+  while (cursor <= end) {
+    if (isResourceWorkingDay(resourceCode, cursor)) {
+      days++;
+    }
+    cursor.setDate(cursor.getDate() + 1);
+    cursor.setHours(0, 0, 0, 0);
+  }
+  return days;
+}
+
+function normalizeTaskStartDates(tasks) {
+  tasks.forEach(task => {
+    if (task && task.manualStart && !task.startDate) {
+      task.startDate = task.manualStart;
+    }
+    if (task && task.manualStart) {
+      delete task.manualStart;
+    }
+    if (task && !task.hasFixedStartDate && task.startDate) {
+      // Ensure legacy flag defaults to false rather than undefined
+      task.hasFixedStartDate = !!task.hasFixedStartDate;
+    }
+  });
+}
+
+function isTaskBehindSchedule(task, scheduleEntry) {
+  if (!task || !scheduleEntry) return false;
+  const progressValue = typeof task.progress === 'number' ? task.progress : 0;
+  const clampedProgress = Math.max(0, Math.min(100, progressValue));
+  if (clampedProgress >= 100) return false;
+
+  const start = scheduleEntry.start instanceof Date ? new Date(scheduleEntry.start) : null;
+  const end = scheduleEntry.end instanceof Date ? new Date(scheduleEntry.end) : null;
+  if (!start || isNaN(start.getTime()) || !end || isNaN(end.getTime())) return false;
+
+  const today = getTodayStart();
+  const comparisonEnd = end < today ? end : today;
+  if (comparisonEnd < start) return false;
+
+  const totalWorking = countWorkingDays(task.owner, start, end);
+  if (totalWorking <= 0) return false;
+
+  const elapsedWorking = countWorkingDays(task.owner, start, comparisonEnd);
+  const achievedWorking = Math.round((clampedProgress / 100) * totalWorking);
+
+  return achievedWorking < elapsedWorking;
+}
+
 // Calculate schedule based on dependencies and RESOURCE AVAILABILITY - THE REAL DEAL!
 function calculateSchedule() {
   const schedule = {};
@@ -967,13 +1116,19 @@ function calculateSchedule() {
   
   // RESOURCE TRACKING - When is each resource free?
   const resourceAvailability = {};
+  const resourceHistoryAvailability = {};
   Object.keys(project.resources).forEach(res => {
     resourceAvailability[res] = new Date(start);
+    resourceHistoryAvailability[res] = new Date(start);
     // Skip to first working day
     while (resourceAvailability[res].getDay() === 0 || resourceAvailability[res].getDay() === 6) {
       resourceAvailability[res].setDate(resourceAvailability[res].getDate() + 1);
     }
+    while (resourceHistoryAvailability[res].getDay() === 0 || resourceHistoryAvailability[res].getDay() === 6) {
+      resourceHistoryAvailability[res].setDate(resourceHistoryAvailability[res].getDate() + 1);
+    }
   });
+  const resourceBookings = {};
   
   // Helper to get FTE factor from weekly hours (40h = 1.0)
   function getResourceFte(resourceCode) {
@@ -1042,7 +1197,7 @@ function calculateSchedule() {
   function addWorkingDays(resourceCode, startDate, days) {
     const date = new Date(startDate);
     let remainingDays = days;
-    
+
     while (remainingDays > 0) {
       date.setDate(date.getDate() + 1);
       // Skip weekends and absences
@@ -1050,7 +1205,7 @@ function calculateSchedule() {
         remainingDays--;
       }
     }
-    
+
     return date;
   }
   
@@ -1068,6 +1223,7 @@ function calculateSchedule() {
     const taskIndex = project.tasks.indexOf(task);
     const nextTask = project.tasks[taskIndex + 1];
     const isParent = nextTask && nextTask.indent > (task.indent || 0);
+    const isSubtask = (task.indent || 0) > 0;
     
     if (isParent) {
       // Parent tasks don't get scheduled - they're just groupings!
@@ -1075,6 +1231,7 @@ function calculateSchedule() {
     }
     
     let taskStart = new Date(start);
+    let taskEnd = null;
     
     // STEP 1: Dependency constraints
     let dependencyEnd = new Date(start);
@@ -1122,80 +1279,228 @@ function calculateSchedule() {
     
     // STEP 2: Resource constraints - THE MAGIC!
     const resourceFreeRaw = resourceAvailability[task.owner] ? new Date(resourceAvailability[task.owner]) : new Date(start);
+    const resourceHistoryRaw = resourceHistoryAvailability[task.owner] ? new Date(resourceHistoryAvailability[task.owner]) : new Date(start);
     const originalResourceTime = resourceFreeRaw.getTime();
+    const historicalResourceTime = resourceHistoryRaw.getTime();
     const progressValue = typeof task.progress === 'number' ? task.progress : 0;
     const clampedProgress = Math.min(100, Math.max(0, progressValue));
     const isComplete = clampedProgress === 100;
     const durationDays = Math.max(1, task.duration || 1);
+    const workedDays = Math.min(durationDays, Math.max(0, Math.round((clampedProgress / 100) * durationDays)));
+    const remainingDays = Math.max(1, durationDays - workedDays);
     const todayTime = today.getTime();
     let dependencyTime = dependencyEnd.getTime();
     let resourceTime = originalResourceTime;
-    
+    const manualDateString = task.startDate ? String(task.startDate).trim() : '';
+    const hasManualStartDate = manualDateString !== '';
+    const manualStartValueRaw = hasManualStartDate ? manualDateString : (task.manualStart || null);
+    const manualStartValue = manualStartValueRaw ? parseIsoDateLocal(manualStartValueRaw) : null;
+    let manualTime = manualStartValue && !isNaN(manualStartValue.getTime()) ? manualStartValue.getTime() : null;
+    let partialFutureStart = null;
+    let partialFutureEnd = null;
+
     if (isComplete) {
+      resourceTime = Math.max(historicalResourceTime, dependencyTime);
       if (dependencyTime > todayTime) dependencyTime = todayTime;
       if (resourceTime > todayTime) resourceTime = todayTime;
+      if (manualTime !== null && manualTime > todayTime && !task.hasFixedStartDate) manualTime = todayTime;
     }
-    let earliestStart;
     if (isComplete) {
-      earliestStart = Math.min(todayTime, Math.max(dependencyTime, resourceTime));
-    } else {
-      earliestStart = Math.max(todayTime, dependencyTime, resourceTime);
-    }
-    taskStart = new Date(earliestStart);
-    
-    if (isComplete) {
+      const manualConstraint = manualTime !== null ? manualTime : -Infinity;
+      const earliestStart = Math.min(todayTime, Math.max(dependencyTime, resourceTime, manualConstraint));
+      taskStart = new Date(earliestStart);
       taskStart = getPreviousAvailableDate(task.owner, taskStart);
     } else {
-      taskStart = skipToWorkingDay(taskStart);
-      taskStart = getNextAvailableDate(task.owner, taskStart);
+      const workedDays = Math.round((clampedProgress / 100) * durationDays);
+      const remainingDays = Math.max(1, durationDays - workedDays);
+
+      let futureConstraint = Math.max(dependencyTime, originalResourceTime);
+      let pastConstraint = Math.max(dependencyTime, historicalResourceTime);
+      if (manualTime !== null) {
+        futureConstraint = Math.max(futureConstraint, manualTime);
+        pastConstraint = Math.max(pastConstraint, manualTime);
+      }
+
+      if (task.hasFixedStartDate && manualTime !== null) {
+        taskStart = new Date(manualTime);
+        taskStart = skipToWorkingDay(taskStart);
+        taskStart = getNextAvailableDate(task.owner, taskStart);
+        taskEnd = addWorkingDays(task.owner, taskStart, Math.max(0, durationDays - 1));
+      } else {
+        let futureAnchor = Math.max(futureConstraint, todayTime);
+        let futureStart = new Date(futureAnchor);
+        futureStart = skipToWorkingDay(futureStart);
+        futureStart = getNextAvailableDate(task.owner, futureStart);
+
+        let plannedEnd = addWorkingDays(task.owner, futureStart, Math.max(0, remainingDays - 1));
+
+        if (workedDays > 0) {
+          let retroStart = subtractWorkingDays(task.owner, futureStart, workedDays);
+          if (retroStart.getTime() < pastConstraint) {
+            retroStart = new Date(pastConstraint);
+            retroStart = skipToWorkingDay(retroStart);
+            retroStart = getNextAvailableDate(task.owner, retroStart);
+            futureStart = addWorkingDays(task.owner, retroStart, workedDays);
+            plannedEnd = addWorkingDays(task.owner, futureStart, Math.max(0, remainingDays - 1));
+          }
+          taskStart = retroStart;
+        } else {
+          taskStart = new Date(futureStart);
+        }
+
+        partialFutureStart = new Date(futureStart);
+        partialFutureEnd = new Date(plannedEnd);
+        taskEnd = plannedEnd;
+      }
     }
-    
+
     // STEP 5: Calculate end considering absences, resource capacity, and remaining effort
     const fte = getResourceFte(task.owner);
     const plannedEffort = isComplete ? durationDays : durationDays * (1 - clampedProgress / 100);
     const effectiveDays = Math.max(1, Math.ceil(plannedEffort / fte));
-    let taskEnd = addWorkingDays(task.owner, taskStart, effectiveDays - 1);
-    
+    if (taskEnd === null) {
+      if (!isComplete && clampedProgress > 0 && clampedProgress < 100) {
+        taskEnd = addWorkingDays(task.owner, taskStart, Math.max(0, durationDays - 1));
+      } else {
+        taskEnd = addWorkingDays(task.owner, taskStart, Math.max(0, effectiveDays - 1));
+      }
+    }
+
     if (isComplete) {
       const latestEnd = getPreviousAvailableDate(task.owner, today);
       if (taskEnd > latestEnd) {
         taskEnd = latestEnd;
       }
-      taskStart = subtractWorkingDays(task.owner, taskEnd, effectiveDays - 1);
+      taskStart = subtractWorkingDays(task.owner, taskEnd, Math.max(0, durationDays - 1));
+      if (manualTime !== null && taskStart.getTime() < manualTime) {
+        if (task.hasFixedStartDate) {
+          taskStart = new Date(manualTime);
+          taskEnd = addWorkingDays(task.owner, taskStart, effectiveDays - 1);
+        } else {
+          taskStart = getNextAvailableDate(task.owner, new Date(manualTime));
+          taskEnd = addWorkingDays(task.owner, taskStart, effectiveDays - 1);
+          if (taskEnd > latestEnd) {
+            taskEnd = latestEnd;
+            taskStart = subtractWorkingDays(task.owner, taskEnd, effectiveDays - 1);
+          }
+        }
+      }
       if (taskStart < start) {
         taskStart = new Date(start);
       }
       if (taskStart > taskEnd) {
         taskStart = new Date(taskEnd);
       }
+    } else if (!task.hasFixedStartDate && !hasManualStartDate && clampedProgress === 0 && taskStart.getTime() < todayTime) {
+      taskStart = new Date(todayTime);
+      taskStart = skipToWorkingDay(taskStart);
+      taskStart = getNextAvailableDate(task.owner, taskStart);
+      taskEnd = addWorkingDays(task.owner, taskStart, effectiveDays - 1);
     }
-    
+
     // CRITICAL: Update when resource will be free again
-    let nextFree = new Date(taskEnd.getTime() + 24*60*60*1000);
+    let resourceSpanEnd = partialFutureEnd ? new Date(partialFutureEnd) : new Date(taskEnd);
+    if (isComplete && resourceSpanEnd.getTime() > todayTime) {
+      resourceSpanEnd = new Date(todayTime);
+    }
+
+    let nextFree = new Date(resourceSpanEnd.getTime() + 24*60*60*1000);
     nextFree = skipToWorkingDay(nextFree);
     nextFree = getNextAvailableDate(task.owner, nextFree);
     if (isComplete) {
       const preserved = originalResourceTime;
       const nextFreeTime = nextFree.getTime();
       resourceAvailability[task.owner] = new Date(Math.max(preserved, nextFreeTime));
+
+      let historyCursor = new Date(Math.min(resourceSpanEnd.getTime(), todayTime));
+      historyCursor.setDate(historyCursor.getDate() + 1);
+      historyCursor = skipToWorkingDay(historyCursor);
+      historyCursor = getNextAvailableDate(task.owner, historyCursor);
+      if (historyCursor.getTime() > todayTime) historyCursor = new Date(todayTime);
+      resourceHistoryAvailability[task.owner] = historyCursor;
     } else {
       resourceAvailability[task.owner] = nextFree;
+
+      if (clampedProgress > 0) {
+        let historyCursor = new Date(Math.min(resourceSpanEnd.getTime(), todayTime));
+        historyCursor.setDate(historyCursor.getDate() + 1);
+        historyCursor = skipToWorkingDay(historyCursor);
+        historyCursor = getNextAvailableDate(task.owner, historyCursor);
+        if (historyCursor.getTime() > todayTime) historyCursor = new Date(todayTime);
+        resourceHistoryAvailability[task.owner] = historyCursor;
+      }
     }
     
     // Store schedule
-    schedule[task.id] = {
-      start: taskStart,
-      end: taskEnd,
-      task: task,
+    const scheduleEntry = {
+      start: new Date(taskStart),
+      end: new Date(taskEnd),
+      task,
       workingDays: effectiveDays,
-      resource: task.owner
+      resource: task.owner,
+      conflict: false
     };
+    schedule[task.id] = scheduleEntry;
+    if (!resourceBookings[task.owner]) {
+      resourceBookings[task.owner] = [];
+    }
+    resourceBookings[task.owner].push(scheduleEntry);
+  });
+  
+  // Detect resource overbooking caused by fixed start dates
+  Object.values(resourceBookings).forEach(entries => {
+    entries.sort((a, b) => a.start.getTime() - b.start.getTime());
+    const active = [];
+    entries.forEach(entry => {
+      const startTime = entry.start.getTime();
+      // remove finished tasks from active set
+      for (let i = active.length - 1; i >= 0; i--) {
+        if (active[i].end.getTime() < startTime) {
+          active.splice(i, 1);
+        }
+      }
+      active.forEach(other => {
+        if (startTime <= other.end.getTime() && (entry.task.hasFixedStartDate || other.task.hasFixedStartDate)) {
+          entry.conflict = true;
+          other.conflict = true;
+        }
+      });
+      active.push(entry);
+    });
   });
   
   return schedule;
 }
 
 // Calculate total project duration
+function checkForOverdueTasks() {
+  const today = getTodayStart();
+  const schedule = calculateSchedule();
+  let tasksMovedToToday = [];
+
+  project.tasks.forEach(task => {
+    if (task.progress === 100) return;
+    if (task.hasFixedStartDate) return;
+    if (task.startDate && task.startDate.trim()) return;
+
+    const taskSchedule = schedule[task.id];
+    if (taskSchedule && taskSchedule.end < today) {
+      tasksMovedToToday.push(task.name);
+    }
+  });
+
+  if (tasksMovedToToday.length > 0) {
+    if (confirm(`Die folgenden überfälligen Tasks wurden gefunden:\n\n${tasksMovedToToday.join('\n')}\n\nSollen diese auf heute verschoben werden?`)) {
+      const todayStr = formatDateForInput(today);
+      project.startDate = todayStr;
+      updateStartDateTooltip();
+      renderTimeline();
+      render();
+      autoSave();
+    }
+  }
+}
+
 function getProjectEndDate() {
   const schedule = calculateSchedule();
   let maxEnd = parseIsoDateLocal(project.startDate);
@@ -1661,10 +1966,19 @@ function render() {
     taskEl.className = `task indent-${task.indent || 0}`;
     if (task.collapsed) taskEl.classList.add('collapsed');
     taskEl.dataset.id = task.id;
-    
+
     // Determine if this is a parent task (has children)
     const nextTask = project.tasks[index + 1];
     const isParent = nextTask && nextTask.indent > (task.indent || 0);
+    const scheduleEntry = schedule[task.id];
+    const isConflict = !isParent && scheduleEntry && scheduleEntry.conflict;
+    const isBehind = !isParent && isTaskBehindSchedule(task, scheduleEntry);
+    if (isBehind) {
+      taskEl.classList.add('overdue');
+    }
+    if (isConflict) {
+      taskEl.classList.add('resource-conflict');
+    }
     
     // One button - context sensitive!
     const isSubtask = (task.indent || 0) > 0;
@@ -1823,7 +2137,7 @@ function render() {
     
     // Parent tasks don't get bars unless collapsed (show aggregate span)
     if (!isParent) {
-      const s = schedule[task.id];
+      const s = scheduleEntry;
       if (s) {
         // Calculate the calendar position (including weekends)
         const startDaysDiff = Math.floor((s.start - startDate) / (1000 * 60 * 60 * 24));
@@ -1860,11 +2174,24 @@ function render() {
           bar.style.background = 'linear-gradient(135deg, #9E9E9E, #757575)';
           bar.style.opacity = '0.7';
         }
-        
+
         bar.innerHTML = `
           ${task.name}
           <div class="progress" style="width: ${task.progress}%"></div>
         `;
+        if (isConflict) {
+          bar.classList.add('resource-conflict');
+          bar.style.background = 'linear-gradient(135deg, #f44336, #d32f2f)';
+          bar.style.boxShadow = '0 2px 6px rgba(244, 67, 54, 0.4)';
+          bar.style.opacity = '0.95';
+        }
+        if (isBehind) {
+          bar.classList.add('overdue');
+          bar.style.background = 'linear-gradient(135deg, #f44336, #d32f2f)';
+          bar.style.boxShadow = '0 2px 6px rgba(244, 67, 54, 0.4)';
+          bar.style.opacity = '0.95';
+        }
+
         bar.onclick = () => editProgress(task.id);
         
         chartRow.appendChild(bar);
@@ -2171,7 +2498,8 @@ function addTask() {
       indent: 0, // New tasks are main tasks
       collapsed: false,
       linkText: '',
-      linkUrl: ''
+      linkUrl: '',
+      hasFixedStartDate: false
     });
     renderTimeline();
     render();
@@ -2211,7 +2539,8 @@ function addSubtask(taskId) {
     duration: 5,
     progress: 0,
     deps: [],
-    indent: 1
+    indent: 1,
+    hasFixedStartDate: false
   };
 
   project.tasks.splice(insertIndex, 0, newTask);
@@ -2392,25 +2721,117 @@ function editDuration(id) {
   }
 }
 
-function editProgress(id) {
+function openTaskModal(id) {
   const task = project.tasks.find(t => t.id === id);
-  if (task) {
-    // Check if parent
-    const taskIndex = project.tasks.indexOf(task);
-    const nextTask = project.tasks[taskIndex + 1];
-    const isParent = nextTask && nextTask.indent > (task.indent || 0);
-    
-    if (isParent) {
-      alert('Parent task progress is calculated from subtasks.\nEdit individual subtask progress instead.');
-      return;
-    }
-    
-    const value = prompt(`Progress for "${task.name}" (0-100):`, task.progress);
-    if (value !== null) {
-      task.progress = Math.min(100, Math.max(0, parseInt(value) || 0));
-      render();
-    }
+  if (!task) return;
+
+  const taskIndex = project.tasks.indexOf(task);
+  const nextTask = project.tasks[taskIndex + 1];
+  const isParent = nextTask && nextTask.indent > (task.indent || 0);
+  if (isParent) {
+    alert('Parent task progress is calculated from subtasks.\nEdit individual subtask progress instead.');
+    return;
   }
+
+  taskModalTaskId = id;
+  taskModalCanSetStart = true;
+
+  document.getElementById('taskModalTaskName').textContent = task.name;
+
+  const progressInput = document.getElementById('taskModalProgress');
+  progressInput.value = task.progress || 0;
+
+  const startRow = document.getElementById('taskModalStartRow');
+  const startInput = document.getElementById('taskModalStartDate');
+  const startHint = document.getElementById('taskModalStartHint');
+  const fixedStartCheckbox = document.getElementById('taskModalFixedStart');
+
+  if (taskModalCanSetStart) {
+    startRow.style.display = 'grid';
+    const schedule = calculateSchedule();
+    let startValue = task.startDate || task.manualStart || '';
+    if (!startValue) {
+      const entry = schedule[task.id];
+      if (entry) {
+        startValue = formatDateForInput(new Date(entry.start));
+      }
+    }
+    startInput.value = startValue;
+    startInput.disabled = false;
+    fixedStartCheckbox.checked = task.hasFixedStartDate || false;
+    const updateStartHint = () => {
+      startHint.textContent = fixedStartCheckbox.checked
+        ? 'Festes Startdatum – Planung bleibt exakt auf diesem Tag.'
+        : 'Leer lassen, um wieder automatisch zu planen.';
+    };
+    updateStartHint();
+    fixedStartCheckbox.onchange = updateStartHint;
+  }
+
+  document.getElementById('taskModal').classList.add('active');
+  progressInput.focus();
+  progressInput.select();
+}
+
+function closeTaskModal() {
+  document.getElementById('taskModal').classList.remove('active');
+  taskModalTaskId = null;
+  taskModalCanSetStart = false;
+}
+
+function saveTaskDetails() {
+  if (taskModalTaskId === null) {
+    closeTaskModal();
+    return;
+  }
+
+  const task = project.tasks.find(t => t.id === taskModalTaskId);
+  if (!task) {
+    closeTaskModal();
+    return;
+  }
+
+  const progressInput = document.getElementById('taskModalProgress');
+  const startInput = document.getElementById('taskModalStartDate');
+  const fixedStartCheckbox = document.getElementById('taskModalFixedStart');
+
+  let progressValue = parseInt(progressInput.value, 10);
+  if (Number.isNaN(progressValue)) {
+    progressValue = task.progress || 0;
+  }
+  progressValue = Math.min(100, Math.max(0, progressValue));
+  task.progress = progressValue;
+
+  if (taskModalCanSetStart) {
+    const startValue = startInput.value.trim();
+    if (startValue) {
+      const parsed = parseIsoDateLocal(startValue);
+      if (isNaN(parsed.getTime())) {
+        alert('Please use format: YYYY-MM-DD for the start date.');
+        return;
+      }
+      task.startDate = startValue;
+      delete task.manualStart;
+      task.hasFixedStartDate = fixedStartCheckbox.checked;
+    } else {
+      delete task.startDate;
+      delete task.manualStart;
+      task.hasFixedStartDate = false;
+    }
+  } else {
+    delete task.manualStart;
+    delete task.startDate;
+    task.hasFixedStartDate = false;
+  }
+
+  closeTaskModal();
+  renderTimeline();
+  render();
+  autoSave();
+}
+
+function editProgress(id) {
+  openTaskModal(id);
 }
 
 // Global for modal state
@@ -2617,6 +3038,7 @@ function load() {
   const saved = localStorage.getItem('fluenta-tempus');
   if (saved) {
     project = JSON.parse(saved);
+    normalizeTaskStartDates(project.tasks || []);
     renderTimeline();
     render();
   } else {
@@ -2677,6 +3099,7 @@ function importJSON() {
         }
         
         project = imported;
+        normalizeTaskStartDates(project.tasks || []);
         renderTimeline();
         render();
         
@@ -2698,6 +3121,7 @@ try {
   const saved = localStorage.getItem('fluenta-tempus');
   if (saved) {
     project = JSON.parse(saved);
+    normalizeTaskStartDates(project.tasks || []);
   }
 } catch (e) {
   // Ignore and keep defaults
@@ -2707,6 +3131,7 @@ try {
 renderResources();
 renderTimeline();
 render();
+checkForOverdueTasks();
 </script>
 
 </body>
