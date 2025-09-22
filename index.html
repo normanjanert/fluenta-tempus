@@ -1049,12 +1049,17 @@ function calculateSchedule() {
         }
       }
       
-      // Check explicit dependencies
+      // Check explicit dependencies: start the NEXT working day after last dep ends
       if (task.deps && task.deps.length > 0) {
         task.deps.forEach(depId => {
           const dep = schedule[depId];
-          if (dep && dep.end > dependencyEnd) {
-            dependencyEnd = new Date(dep.end);
+          if (dep) {
+            // Day after dependency end (calendar day; working-day adjustment happens later)
+            const afterEnd = new Date(dep.end);
+            afterEnd.setDate(afterEnd.getDate() + 1);
+            if (afterEnd > dependencyEnd) {
+              dependencyEnd = afterEnd;
+            }
           }
         });
       }
@@ -1835,35 +1840,40 @@ document.addEventListener('dragstart', e => {
 document.addEventListener('dragend', e => {
   if (draggedTask) {
     // Remove all visual indicators
-    document.querySelectorAll('.task.dragging').forEach(el => {
-      el.classList.remove('dragging');
-    });
-    document.querySelectorAll('.task.drop-forbidden').forEach(el => {
-      el.classList.remove('drop-forbidden');
-    });
-    
-    // Get new order from DOM
-    const newOrder = [];
-    const taskElements = document.querySelectorAll('.task');
-    
-    taskElements.forEach(el => {
-      const id = parseInt(el.dataset.id);
-      const task = project.tasks.find(t => t.id === id);
-      if (task && !draggedTaskFamily.includes(task)) {
-        newOrder.push(task);
-      }
-    });
-    
-    // Insert the dragged family at the new position
-    const insertIndex = Array.from(taskElements).indexOf(draggedTask);
-    newOrder.splice(insertIndex, 0, ...draggedTaskFamily);
-    
-    // Update project tasks
+    document.querySelectorAll('.task.dragging').forEach(el => el.classList.remove('dragging'));
+    document.querySelectorAll('.task.drop-forbidden').forEach(el => el.classList.remove('drop-forbidden'));
+
+    // Compute insertion anchor based on DOM position after dragover
+    const lastDraggedId = draggedTaskFamily[draggedTaskFamily.length - 1]?.id;
+    const lastDraggedEl = lastDraggedId ? document.querySelector(`.task[data-id="${lastDraggedId}"]`) : null;
+    let anchorEl = lastDraggedEl ? lastDraggedEl.nextElementSibling : null; // insert before this; null => end
+
+    // Skip over any dragged elements (safety)
+    while (anchorEl && draggedTaskFamily.some(t => t.id === parseInt(anchorEl.dataset.id))) {
+      anchorEl = anchorEl.nextElementSibling;
+    }
+
+    const draggedIds = new Set(draggedTaskFamily.map(t => t.id));
+
+    // Remove dragged family from original order (preserve hidden subtasks elsewhere)
+    const remaining = project.tasks.filter(t => !draggedIds.has(t.id));
+
+    // Determine insertion index in full list
+    let insertIndexFull = remaining.length; // default append
+    if (anchorEl) {
+      const anchorId = parseInt(anchorEl.dataset.id);
+      insertIndexFull = remaining.findIndex(t => t.id === anchorId);
+      if (insertIndexFull === -1) insertIndexFull = remaining.length;
+    }
+
+    // Build new order
+    const newOrder = remaining.slice();
+    newOrder.splice(insertIndexFull, 0, ...draggedTaskFamily);
+
+    // Commit
     project.tasks = newOrder;
-    
-    // Update IDs to reflect new priority (position = priority!)
-    project.tasks.forEach((task, i) => task.id = i + 1);
-    
+    project.tasks.forEach((task, i) => task.id = i + 1); // Position = Priorität
+
     draggedTask = null;
     draggedTaskFamily = [];
     render();
