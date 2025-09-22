@@ -354,6 +354,15 @@ body { font: 13px system-ui; background: #fff; }
   position: relative; /* For indent controls */
 }
 
+/* First line: name on left, actions on right */
+.task-top {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.task-top .task-name { flex: 1; }
+
 /* Indent/Outdent button - ONE BUTTON TO RULE THEM ALL! */
 .indent-controls {
   position: absolute;
@@ -363,9 +372,9 @@ body { font: 13px system-ui; background: #fff; }
   display: none;
 }
 
-.task:hover .indent-controls {
-  display: block;
-}
+/* Actions appear on hover to keep it clean */
+.task-actions { display: none; gap: 6px; }
+.task:hover .task-actions { display: inline-flex; }
 
 .indent-btn {
   width: 24px;
@@ -1578,16 +1587,18 @@ function render() {
         <span>≡</span>
       </div>
       <div class="task-content">
-        <div class="task-name" contenteditable="true" data-field="name" data-task-id="${task.id}">${task.name}</div>
+        <div class="task-top">
+          <div class="task-name" contenteditable="true" data-field="name" data-task-id="${task.id}">${task.name}</div>
+          <div class="task-actions">
+            <button class="indent-btn delete-btn" title="Delete" onclick="deleteTask(${task.id}); event.stopPropagation();">✖</button>
+            <button class="indent-btn" data-role="indent" title="${buttonTitle}">${buttonIcon}</button>
+          </div>
+        </div>
         <div class="task-meta">
           <span class="owner" data-field="owner">${task.owner}</span>
           <span class="duration" data-field="duration">${task.duration}d</span>
           <span class="progress-badge" data-field="progress">${task.progress}%</span>
           ${badgeHTML}
-        </div>
-        <div class="indent-controls">
-          <button class="indent-btn" title="${buttonTitle}">${buttonIcon}</button>
-          <button class="indent-btn delete-btn" title="Delete" onclick="deleteTask(${task.id}); event.stopPropagation();">✖</button>
         </div>
       </div>
     `;
@@ -1603,7 +1614,7 @@ function render() {
     }
     
     // ONE button with ONE function!
-    const indentBtn = taskEl.querySelector('.indent-btn');
+    const indentBtn = taskEl.querySelector('.indent-btn[data-role="indent"]');
     indentBtn.onclick = (e) => {
       e.stopPropagation();
       e.preventDefault();
