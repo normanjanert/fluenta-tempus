@@ -935,11 +935,35 @@ let project = {
 
 let draggedTask = null;
 const PIXELS_PER_DAY = 20; // MAGNIFICO! Each day is visible!
+const COMPLETED_BAR_COLOR = '#4CAF50'; // 100% erledigt? Immer grün!
+
+function parseIsoDateLocal(value) {
+  if (typeof value === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(value)) {
+    const [year, month, day] = value.split('-').map(Number);
+    const date = new Date(year, month - 1, day);
+    if (date.getFullYear() !== year || date.getMonth() !== month - 1 || date.getDate() !== day) {
+      return new Date(NaN);
+    }
+    return date;
+  }
+  const date = new Date(value);
+  return isNaN(date.getTime()) ? new Date(NaN) : date;
+}
+
+function getTodayStart() {
+  const d = new Date();
+  d.setHours(0, 0, 0, 0);
+  return d;
+}
 
 // Calculate schedule based on dependencies and RESOURCE AVAILABILITY - THE REAL DEAL!
 function calculateSchedule() {
   const schedule = {};
-  const start = new Date(project.startDate);
+  const start = parseIsoDateLocal(project.startDate);
+  const today = getTodayStart();
+  if (isNaN(start.getTime())) {
+    return schedule;
+  }
   
   // RESOURCE TRACKING - When is each resource free?
   const resourceAvailability = {};
@@ -965,8 +989,11 @@ function calculateSchedule() {
     if (!resource || !resource.absences) return false;
     
     return resource.absences.some(absence => {
-      const absStart = new Date(absence.start);
-      const absEnd = new Date(absence.end);
+      const absStart = parseIsoDateLocal(absence.start);
+      const absEnd = parseIsoDateLocal(absence.end);
+      if (isNaN(absStart.getTime()) || isNaN(absEnd.getTime())) {
+        return false;
+      }
       absStart.setHours(0, 0, 0, 0);
       absEnd.setHours(23, 59, 59, 999);
       return date >= absStart && date <= absEnd;
@@ -988,6 +1015,29 @@ function calculateSchedule() {
     return date;
   }
   
+  function getPreviousAvailableDate(resourceCode, proposedDate) {
+    const date = new Date(proposedDate);
+    while ((date.getDay() === 0 || date.getDay() === 6 || isAbsent(resourceCode, date)) && date > start) {
+      date.setDate(date.getDate() - 1);
+    }
+    if (date < start) return new Date(start);
+    return date;
+  }
+
+  function subtractWorkingDays(resourceCode, endDate, days) {
+    if (days <= 0) return new Date(endDate);
+    const date = new Date(endDate);
+    let remainingDays = days;
+    while (remainingDays > 0 && date > start) {
+      date.setDate(date.getDate() - 1);
+      if (date.getDay() !== 0 && date.getDay() !== 6 && !isAbsent(resourceCode, date)) {
+        remainingDays--;
+      }
+    }
+    if (date < start) return new Date(start);
+    return date;
+  }
+
   // Helper function to add working days (considering absences)
   function addWorkingDays(resourceCode, startDate, days) {
     const date = new Date(startDate);
@@ -1071,32 +1121,73 @@ function calculateSchedule() {
     }
     
     // STEP 2: Resource constraints - THE MAGIC!
-    const resourceFree = resourceAvailability[task.owner] || new Date(start);
+    const resourceFreeRaw = resourceAvailability[task.owner] ? new Date(resourceAvailability[task.owner]) : new Date(start);
+    const originalResourceTime = resourceFreeRaw.getTime();
+    const progressValue = typeof task.progress === 'number' ? task.progress : 0;
+    const clampedProgress = Math.min(100, Math.max(0, progressValue));
+    const isComplete = clampedProgress === 100;
+    const durationDays = Math.max(1, task.duration || 1);
+    const todayTime = today.getTime();
+    let dependencyTime = dependencyEnd.getTime();
+    let resourceTime = originalResourceTime;
     
-    // STEP 3: Task starts when BOTH constraints are met
-    taskStart = new Date(Math.max(dependencyEnd, resourceFree));
-    taskStart = skipToWorkingDay(taskStart);
+    if (isComplete) {
+      if (dependencyTime > todayTime) dependencyTime = todayTime;
+      if (resourceTime > todayTime) resourceTime = todayTime;
+    }
+    let earliestStart;
+    if (isComplete) {
+      earliestStart = Math.min(todayTime, Math.max(dependencyTime, resourceTime));
+    } else {
+      earliestStart = Math.max(todayTime, dependencyTime, resourceTime);
+    }
+    taskStart = new Date(earliestStart);
     
-    // STEP 4: Check for absences and adjust start date
-    taskStart = getNextAvailableDate(task.owner, taskStart);
+    if (isComplete) {
+      taskStart = getPreviousAvailableDate(task.owner, taskStart);
+    } else {
+      taskStart = skipToWorkingDay(taskStart);
+      taskStart = getNextAvailableDate(task.owner, taskStart);
+    }
     
-    // STEP 5: Calculate end considering absences AND resource capacity
+    // STEP 5: Calculate end considering absences, resource capacity, and remaining effort
     const fte = getResourceFte(task.owner);
-    const effectiveDays = Math.max(1, Math.ceil(task.duration / fte));
-    const taskEnd = addWorkingDays(task.owner, taskStart, effectiveDays - 1);
+    const plannedEffort = isComplete ? durationDays : durationDays * (1 - clampedProgress / 100);
+    const effectiveDays = Math.max(1, Math.ceil(plannedEffort / fte));
+    let taskEnd = addWorkingDays(task.owner, taskStart, effectiveDays - 1);
+    
+    if (isComplete) {
+      const latestEnd = getPreviousAvailableDate(task.owner, today);
+      if (taskEnd > latestEnd) {
+        taskEnd = latestEnd;
+      }
+      taskStart = subtractWorkingDays(task.owner, taskEnd, effectiveDays - 1);
+      if (taskStart < start) {
+        taskStart = new Date(start);
+      }
+      if (taskStart > taskEnd) {
+        taskStart = new Date(taskEnd);
+      }
+    }
     
     // CRITICAL: Update when resource will be free again
     let nextFree = new Date(taskEnd.getTime() + 24*60*60*1000);
     nextFree = skipToWorkingDay(nextFree);
     nextFree = getNextAvailableDate(task.owner, nextFree);
-    resourceAvailability[task.owner] = nextFree;
+    if (isComplete) {
+      const preserved = originalResourceTime;
+      const nextFreeTime = nextFree.getTime();
+      resourceAvailability[task.owner] = new Date(Math.max(preserved, nextFreeTime));
+    } else {
+      resourceAvailability[task.owner] = nextFree;
+    }
     
     // Store schedule
     schedule[task.id] = {
       start: taskStart,
       end: taskEnd,
       task: task,
-      workingDays: task.duration,
+      workingDays: effectiveDays,
       resource: task.owner
     };
   });
@@ -1107,13 +1198,18 @@ function calculateSchedule() {
 // Calculate total project duration
 function getProjectEndDate() {
   const schedule = calculateSchedule();
-  let maxEnd = new Date(project.startDate);
+  let maxEnd = parseIsoDateLocal(project.startDate);
+  if (isNaN(maxEnd.getTime())) {
+    return getTodayStart();
+  }
   
   Object.values(schedule).forEach(s => {
-    if (s.end > maxEnd) maxEnd = s.end;
+    const end = new Date(s.end);
+    if (end > maxEnd) maxEnd = end;
   });
   
   // Add some buffer days
+  maxEnd.setHours(0, 0, 0, 0);
   maxEnd.setDate(maxEnd.getDate() + 30);
   return maxEnd;
 }
@@ -1124,10 +1220,13 @@ function renderTimeline() {
   const timelineScroll = document.createElement('div');
   timelineScroll.className = 'timeline-scroll';
   
-  const startDate = new Date(project.startDate);
+  const startDate = parseIsoDateLocal(project.startDate);
+  if (isNaN(startDate.getTime())) {
+    timeline.innerHTML = '';
+    return;
+  }
   const endDate = getProjectEndDate();
-  const today = new Date();
-  today.setHours(0, 0, 0, 0);
+  const today = getTodayStart();
   
   let currentMonth = '';
   let monthStart = 0;
@@ -1358,9 +1457,12 @@ function renderAbsences(absences = []) {
   }
   
   list.innerHTML = tempAbsences.map((absence, index) => {
-    const start = new Date(absence.start).toLocaleDateString('en-GB');
-    const end = new Date(absence.end).toLocaleDateString('en-GB');
-    const days = Math.ceil((new Date(absence.end) - new Date(absence.start)) / (1000 * 60 * 60 * 24)) + 1;
+    const startDate = parseIsoDateLocal(absence.start);
+    const endDate = parseIsoDateLocal(absence.end);
+    const validDates = !isNaN(startDate.getTime()) && !isNaN(endDate.getTime());
+    const start = validDates ? startDate.toLocaleDateString('en-GB') : absence.start;
+    const end = validDates ? endDate.toLocaleDateString('en-GB') : absence.end;
+    const days = validDates ? Math.floor((endDate - startDate) / (1000 * 60 * 60 * 24)) + 1 : 0;
     
     return `
       <div style="display: flex; align-items: center; gap: 8px; padding: 6px 8px; background: #f8f8f8; border-radius: 4px; font-size: 11px;">
@@ -1380,18 +1482,25 @@ function addAbsence() {
     return;
   }
   
-  if (new Date(start) > new Date(end)) {
+  const startDate = parseIsoDateLocal(start);
+  const endDate = parseIsoDateLocal(end);
+  if (isNaN(startDate.getTime()) || isNaN(endDate.getTime())) {
+    alert('Please pick valid dates for the absence');
+    return;
+  }
+  if (endDate < startDate) {
     alert('End date must be after start date');
     return;
   }
   
   // Check for overlaps
   const overlap = tempAbsences.some(absence => {
-    const aStart = new Date(absence.start);
-    const aEnd = new Date(absence.end);
-    const nStart = new Date(start);
-    const nEnd = new Date(end);
-    return (nStart <= aEnd) && (nEnd >= aStart);
+    const aStart = parseIsoDateLocal(absence.start);
+    const aEnd = parseIsoDateLocal(absence.end);
+    if (isNaN(aStart.getTime()) || isNaN(aEnd.getTime())) {
+      return false;
+    }
+    return (startDate <= aEnd) && (endDate >= aStart);
   });
   
   if (overlap) {
@@ -1400,7 +1509,7 @@ function addAbsence() {
   }
   
   tempAbsences.push({ start, end });
-  tempAbsences.sort((a, b) => new Date(a.start) - new Date(b.start));
+  tempAbsences.sort((a, b) => parseIsoDateLocal(a.start) - parseIsoDateLocal(b.start));
   
   renderAbsences(tempAbsences);
   
@@ -1501,7 +1610,12 @@ function render() {
   const schedule = calculateSchedule();
   const taskList = document.getElementById('taskList');
   const chart = document.getElementById('chart');
-  const startDate = new Date(project.startDate);
+  const startDate = parseIsoDateLocal(project.startDate);
+  if (isNaN(startDate.getTime())) {
+    taskList.innerHTML = '';
+    chart.innerHTML = '';
+    return;
+  }
   
   // Clear existing content
   taskList.innerHTML = '';
@@ -1518,8 +1632,7 @@ function render() {
   chartScroll.style.width = `${totalWidth}px`;
   
   // Add today marker to chart
-  const today = new Date();
-  today.setHours(0, 0, 0, 0);
+  const today = getTodayStart();
   const todayDiff = Math.floor((today - startDate) / (1000 * 60 * 60 * 24));
   if (todayDiff >= 0 && todayDiff <= totalDays) {
     const marker = document.createElement('div');
@@ -1725,9 +1838,11 @@ function render() {
         bar.style.left = `${left}px`;
         bar.style.width = `${width}px`;
         
-        // Get color from resource
+        // Get color from resource, but completed tasks stay green
         const resource = project.resources[task.owner];
-        if (resource && resource.color) {
+        if (task.progress === 100) {
+          bar.style.background = `linear-gradient(135deg, ${COMPLETED_BAR_COLOR}, ${COMPLETED_BAR_COLOR}dd)`;
+        } else if (resource && resource.color) {
           bar.style.background = `linear-gradient(135deg, ${resource.color}, ${resource.color}dd)`;
         } else {
           bar.style.background = 'linear-gradient(135deg, #9E9E9E, #757575)';
@@ -2197,15 +2312,15 @@ function editStartDate() {
       return;
     }
     
-    const testDate = new Date(newDate);
+    const testDate = parseIsoDateLocal(newDate);
     if (isNaN(testDate.getTime())) {
       alert('Invalid date!');
       return;
     }
     
     // Check if changing date would affect tasks in progress
-    const oldStart = new Date(project.startDate);
-    const newStart = new Date(newDate);
+    const oldStart = parseIsoDateLocal(project.startDate);
+    const newStart = parseIsoDateLocal(newDate);
     const daysDiff = Math.floor((newStart - oldStart) / (1000 * 60 * 60 * 24));
     
     if (daysDiff !== 0) {
@@ -2233,7 +2348,7 @@ function editStartDate() {
 function updateStartDateTooltip() {
   const btn = document.getElementById('startDateBtn');
   if (btn) {
-    const date = new Date(project.startDate);
+    const date = parseIsoDateLocal(project.startDate);
     const formatted = date.toLocaleDateString('en-GB', { 
       day: '2-digit', 
       month: 'short', 
