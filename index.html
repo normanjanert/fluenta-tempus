@@ -1590,6 +1590,7 @@ function render() {
         <div class="task-top">
           <div class="task-name" contenteditable="true" data-field="name" data-task-id="${task.id}">${task.name}</div>
           <div class="task-actions">
+            <button class="indent-btn" title="Add subtask" onclick="addSubtask(${task.id}); event.stopPropagation();">＋</button>
             <button class="indent-btn delete-btn" title="Delete" onclick="deleteTask(${task.id}); event.stopPropagation();">✖</button>
             <button class="indent-btn" data-role="indent" title="${buttonTitle}">${buttonIcon}</button>
           </div>
@@ -1881,9 +1882,24 @@ document.addEventListener('dragend', e => {
     const newOrder = remaining.slice();
     newOrder.splice(insertIndexFull, 0, ...draggedTaskFamily);
 
+    // Create ID remapping (oldId -> newId) BEFORE overwriting ids
+    const oldToNew = new Map();
+    newOrder.forEach((t, i) => oldToNew.set(t.id, i + 1));
+
+    // Assign new IDs (Position = Priorität)
+    newOrder.forEach((t, i) => { t.id = i + 1; });
+
+    // Update dependencies to new IDs
+    newOrder.forEach(t => {
+      if (Array.isArray(t.deps)) {
+        t.deps = t.deps
+          .map(depId => oldToNew.get(depId))
+          .filter(v => typeof v === 'number');
+      }
+    });
+
     // Commit
     project.tasks = newOrder;
-    project.tasks.forEach((task, i) => task.id = i + 1); // Position = Priorität
 
     draggedTask = null;
     draggedTaskFamily = [];
@@ -2021,6 +2037,64 @@ function addTask() {
   }
 }
 
+// Add a subtask at the end of the current parent's subtask block
+function addSubtask(taskId) {
+  const idx = project.tasks.findIndex(t => t.id === taskId);
+  if (idx === -1) return;
+
+  // Determine parent index (tasks are only 0 or 1 indent)
+  let parentIndex = idx;
+  if ((project.tasks[idx].indent || 0) > 0) {
+    // Find the main task above
+    parentIndex = -1;
+    for (let i = idx - 1; i >= 0; i--) {
+      if ((project.tasks[i].indent || 0) === 0) { parentIndex = i; break; }
+    }
+    if (parentIndex === -1) return; // Safety
+  }
+
+  // Find insertion index: after existing subtasks of the parent
+  let insertIndex = parentIndex + 1;
+  while (insertIndex < project.tasks.length && (project.tasks[insertIndex].indent || 0) > 0) {
+    insertIndex++;
+  }
+
+  const parent = project.tasks[parentIndex];
+  const name = prompt('Subtask name:');
+  if (name === null) return;
+
+  const newTask = {
+    id: 0, // will be reindexed
+    name: name.trim() || 'New subtask',
+    owner: parent.owner,
+    duration: 5,
+    progress: 0,
+    deps: [],
+    indent: 1
+  };
+
+  project.tasks.splice(insertIndex, 0, newTask);
+
+  // Build old->new mapping (before changing ids)
+  const oldToNew = new Map();
+  project.tasks.forEach((t, i) => oldToNew.set(t.id, i + 1));
+
+  // Reindex IDs to keep Position = Priorität
+  project.tasks.forEach((t, i) => t.id = i + 1);
+
+  // Remap deps to new IDs
+  project.tasks.forEach(t => {
+    if (Array.isArray(t.deps)) {
+      t.deps = t.deps
+        .map(depId => oldToNew.get(depId))
+        .filter(v => typeof v === 'number');
+    }
+  });
+
+  renderTimeline();
+  render();
+}
+
 // Delete a task or a parent with its subtasks (with confirmation)
 function deleteTask(id) {
   const index = project.tasks.findIndex(t => t.id === id);
@@ -2058,15 +2132,28 @@ function deleteTask(id) {
   // Remove tasks
   project.tasks = project.tasks.filter(t => !idsToDelete.includes(t.id));
 
-  // Remove dependencies pointing to deleted IDs
+  // Remove dependencies pointing to deleted IDs (still old IDs here)
   project.tasks.forEach(t => {
-    if (t.deps && Array.isArray(t.deps)) {
+    if (Array.isArray(t.deps)) {
       t.deps = t.deps.filter(depId => !idsToDelete.includes(depId));
     }
   });
 
-  // Reindex IDs (Position = Priorität)
+  // Build old->new ID map based on current order (before changing ids)
+  const oldToNew = new Map();
+  project.tasks.forEach((t, i) => oldToNew.set(t.id, i + 1));
+
+  // Assign new IDs
   project.tasks.forEach((t, i) => t.id = i + 1);
+
+  // Remap dependencies to new IDs
+  project.tasks.forEach(t => {
+    if (Array.isArray(t.deps)) {
+      t.deps = t.deps
+        .map(depId => oldToNew.get(depId))
+        .filter(v => typeof v === 'number');
+    }
+  });
 
   renderTimeline();
   render();
