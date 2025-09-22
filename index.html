@@ -946,6 +946,14 @@ function calculateSchedule() {
     }
   });
   
+  // Helper to get FTE factor from weekly hours (40h = 1.0)
+  function getResourceFte(resourceCode) {
+    const resource = project.resources[resourceCode];
+    const hours = resource && resource.weeklyHours ? resource.weeklyHours : 40;
+    const fte = hours / 40;
+    return fte > 0 ? fte : 1; // Avoid zero/negative
+  }
+
   // Helper function to check if a date is during an absence
   function isAbsent(resourceCode, date) {
     const resource = project.resources[resourceCode];
@@ -1062,8 +1070,10 @@ function calculateSchedule() {
     // STEP 4: Check for absences and adjust start date
     taskStart = getNextAvailableDate(task.owner, taskStart);
     
-    // STEP 5: Calculate end considering absences
-    const taskEnd = addWorkingDays(task.owner, taskStart, task.duration - 1);
+    // STEP 5: Calculate end considering absences AND resource capacity
+    const fte = getResourceFte(task.owner);
+    const effectiveDays = Math.max(1, Math.ceil(task.duration / fte));
+    const taskEnd = addWorkingDays(task.owner, taskStart, effectiveDays - 1);
     
     // CRITICAL: Update when resource will be free again
     let nextFree = new Date(taskEnd.getTime() + 24*60*60*1000);
@@ -2434,25 +2444,20 @@ function importJSON() {
   input.click();
 }
 
+// Restore from localStorage BEFORE first render (prevents overwriting with defaults)
+try {
+  const saved = localStorage.getItem('fluenta-tempus');
+  if (saved) {
+    project = JSON.parse(saved);
+  }
+} catch (e) {
+  // Ignore and keep defaults
+}
+
 // Initial render
 renderResources();
 renderTimeline();
 render();
-
-// Load from localStorage on startup
-window.addEventListener('DOMContentLoaded', () => {
-  const saved = localStorage.getItem('fluenta-tempus');
-  if (saved) {
-    try {
-      project = JSON.parse(saved);
-      renderResources();
-      renderTimeline();
-      render();
-    } catch(e) {
-      // Invalid data - use default
-    }
-  }
-});
 </script>
 
 </body>
